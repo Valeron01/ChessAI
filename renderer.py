@@ -6,9 +6,10 @@ from common_things import PieceType, PieceColor
 
 
 class PieceRenderer:
-    def __init__(self, font_size, font_color=0x000000):
+    def __init__(self, cell_size, font_color=0x000000):
         # pieces = u"♔♕♖♗♘♙♚♛♜♝♞♟"
-        self.font = ImageFont.truetype(r"./FreeSerif.ttf", font_size)
+        self.font_size = cell_size * 80 // 64
+        self.font = ImageFont.truetype(r"./meta/FreeSerif.ttf", self.font_size)
         self.font_color = font_color
         self.pieces = {
             PieceColor.BLACK: {
@@ -30,7 +31,6 @@ class PieceRenderer:
         }
 
     def draw_piece(self, image: Image.Image, x, y, piece_type: PieceType, piece_color: PieceColor):
-
         drawer = ImageDraw.Draw(image)
         text = self.pieces[piece_color][piece_type]
         bbox = drawer.textbbox((0, 0), text, self.font)
@@ -45,15 +45,28 @@ class PieceRenderer:
         return image
 
 
-def main():
-    image = Image.new("RGB", (500, 500), 0xffffff)
+def build_checkerboard_image(field_size, cell_size):
+    resulted_image = np.zeros([field_size * cell_size, field_size * cell_size, 3], dtype=np.uint8)
+    colors_dict = {
+        0: [105, 58, 20],
+        1: [235, 146, 63]
+    }
+    for i in range(field_size):
+        for j in range(field_size):
+            color = (i + j) % 2
+            resulted_image[i * cell_size:i*cell_size + cell_size, j * cell_size:j * cell_size + cell_size] = colors_dict[color]
+    return Image.fromarray(resulted_image, "RGB")
 
-    renderer = PieceRenderer(150)
+
+def main():
+    # image = Image.new("RGB", (500, 500), 0xffffff)
+    checkerboard = build_checkerboard_image(8, 64)
+    renderer = PieceRenderer(64)
     renderer.draw_piece(
-        image, 100, 100, PieceType.QUEEN, PieceColor.WHITE
+        checkerboard, 32, 32, PieceType.QUEEN, PieceColor.BLACK
     )
 
-    image.save("./test_image.jpg")
+    checkerboard.save("./test_image.jpg")
 
 
 

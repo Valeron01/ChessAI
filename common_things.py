@@ -9,6 +9,8 @@ class PieceType(enum.Enum):
     QUEEN = 4
     KING = 5
 
+    EMPTY = 6
+
 
 class PieceColor(enum.Enum):
     BLACK = 8
