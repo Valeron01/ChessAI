@@ -1,3 +1,5 @@
+import enum
+
 import numpy as np
 from common_things import Piece, PieceType, PieceColor
 
@@ -42,6 +44,13 @@ class ChessField:
             raise IndexError(f"Row index {row} or column {column} is outside of bounds")
 
         return self.__field_array[row, column]
+
+    def __setitem__(self, key, value):
+        row, column = key
+        if row < 0 or column < 0 or row > 7 or column > 7:
+            raise IndexError(f"Row index {row} or column {column} is outside of bounds")
+
+        self.__field_array[row, column] = value
 
     def is_empty(self, row, column):
         piece = self.__field_array[row, column]
@@ -145,12 +154,18 @@ class MoveChecker:
 
     @staticmethod
     def check_move(field: ChessField, source_row, source_column, target_row, target_column):
-        source_piece = field[source_row, source_column]
+        try:
+            target_piece = field[target_row, target_column]
+            source_piece = field[source_row, source_column]
+        except IndexError as e:
+            print(e)
+            return False
+
         if source_row == target_row and source_column == target_column:
             return False
         if source_piece.piece_type == PieceType.EMPTY:
             return False
-        target_piece = field[target_row, target_column]
+
         if target_piece.piece_color == source_piece.piece_color:
             return False
 
@@ -169,7 +184,46 @@ class MoveChecker:
         if source_piece.piece_type == PieceType.QUEEN:
             return MoveChecker.__check_move_queen(field, source_row, source_column, target_row, target_column)
 
+        if source_piece.piece_type == PieceType.KING:
+            return False
+
         raise NotImplementedError()
+
+
+class StepResult(enum.Enum):
+    INVALID_MOVE = 0
+    PERFORMED = 1
+    PERFORMED_KILL = 2
+
+
+class ChessEngine:
+    def __init__(self):
+        self.field = ChessField.init_game()
+        self.current_player_color = PieceColor.WHITE
+        self.dead_whites = []
+        self.dead_blacks = []
+
+    def make_step(self, source_row, source_column, target_row, target_column):
+        is_step_possible = MoveChecker.check_move(
+            self.field, source_row, source_column, target_row, target_column
+        )
+        step_result = StepResult.INVALID_MOVE
+        if is_step_possible:
+            target_piece = self.field[target_row, target_column]
+            if target_piece.piece_type != PieceType.EMPTY:
+                if target_piece.piece_color == PieceColor.BLACK:
+                    self.dead_blacks.append(target_piece)
+                if target_piece.piece_color == PieceColor.WHITE:
+                    self.dead_whites.append(target_piece)
+
+                step_result = StepResult.PERFORMED_KILL
+            else:
+                step_result = StepResult.PERFORMED
+
+            self.field[target_row, target_column] = self.field[source_row, source_column]
+            self.field[source_row, source_column] = Piece(PieceType.EMPTY, None)
+
+        return step_result
 
 
 
