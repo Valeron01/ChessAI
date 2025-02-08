@@ -1,13 +1,18 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
-from common_things import PieceType, PieceColor
+
+from chess_engine import ChessField
+from common_things import PieceType, PieceColor, Piece
 
 
 class PieceRenderer:
-    def __init__(self, cell_size, font_color=0x000000):
+    def __init__(self, cell_size, field_size: int = 8, font_color=0x000000):
         # pieces = u"♔♕♖♗♘♙♚♛♜♝♞♟"
+        self.field_size = field_size
+        self.cell_size = cell_size
         self.font_size = cell_size * 80 // 64
         self.font = ImageFont.truetype(r"./meta/FreeSerif.ttf", self.font_size)
         self.font_color = font_color
@@ -30,6 +35,8 @@ class PieceRenderer:
             }
         }
 
+        self.empty_chessboard_image = build_checkerboard_image(field_size, cell_size)
+
     def draw_piece(self, image: Image.Image, x, y, piece_type: PieceType, piece_color: PieceColor):
         drawer = ImageDraw.Draw(image)
         text = self.pieces[piece_color][piece_type]
@@ -44,29 +51,38 @@ class PieceRenderer:
 
         return image
 
+    def render_field(self, chessboard_field_array: np.ndarray[Piece]) -> np.ndarray:
+        image = self.empty_chessboard_image.copy()
+        for i in range(self.field_size):
+            for j in range(self.field_size):
+                x = self.cell_size / 2 + j * self.cell_size
+                y = self.cell_size / 2 + i * self.cell_size
+                piece: Piece = chessboard_field_array[i, j]
+                if piece.piece_type != PieceType.EMPTY:
+                    self.draw_piece(image, x, y, piece_type=piece.piece_type, piece_color=piece.piece_color)
+
+        return np.uint8(image)[..., ::-1]
+
 
 def build_checkerboard_image(field_size, cell_size):
     resulted_image = np.zeros([field_size * cell_size, field_size * cell_size, 3], dtype=np.uint8)
     colors_dict = {
-        0: [105, 58, 20],
-        1: [235, 146, 63]
+        True: [105, 58, 20],
+        False: [235, 146, 63]
     }
     for i in range(field_size):
         for j in range(field_size):
-            color = (i + j) % 2
+            color = ChessField.is_cell_black(i, j)
             resulted_image[i * cell_size:i*cell_size + cell_size, j * cell_size:j * cell_size + cell_size] = colors_dict[color]
     return Image.fromarray(resulted_image, "RGB")
 
 
 def main():
-    # image = Image.new("RGB", (500, 500), 0xffffff)
-    checkerboard = build_checkerboard_image(8, 64)
+    field = ChessField.init_game()
     renderer = PieceRenderer(64)
-    renderer.draw_piece(
-        checkerboard, 32, 32, PieceType.QUEEN, PieceColor.BLACK
-    )
-
-    checkerboard.save("./test_image.jpg")
+    image = renderer.render_field(field.field_array)
+    cv2.imshow("qwe", image)
+    cv2.waitKey(0)
 
 
 

@@ -1,4 +1,5 @@
 import enum
+import typing
 
 
 class PieceType(enum.Enum):
@@ -16,3 +17,8 @@ class PieceColor(enum.Enum):
     BLACK = 8
     WHITE = 16
 
+
+class Piece:
+    def __init__(self, piece_type: PieceType, piece_color: typing.Union[PieceColor, None]):
+        self.piece_type = piece_type
+        self.piece_color = piece_color
