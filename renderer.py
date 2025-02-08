@@ -51,7 +51,7 @@ class PieceRenderer:
 
         return image
 
-    def render_field(self, chessboard_field_array: np.ndarray[Piece]) -> np.ndarray:
+    def render_field(self, chessboard_field_array: ChessField) -> np.ndarray:
         image = self.empty_chessboard_image.copy()
         for i in range(self.field_size):
             for j in range(self.field_size):
@@ -77,14 +77,3 @@ def build_checkerboard_image(field_size, cell_size):
     return Image.fromarray(resulted_image, "RGB")
 
 
-def main():
-    field = ChessField.init_game()
-    renderer = PieceRenderer(64)
-    image = renderer.render_field(field.field_array)
-    cv2.imshow("qwe", image)
-    cv2.waitKey(0)
-
-
-
-if __name__ == '__main__':
-    main()
