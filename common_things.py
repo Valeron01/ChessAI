@@ -22,3 +22,15 @@ class Piece:
     def __init__(self, piece_type: PieceType, piece_color: typing.Union[PieceColor, None]):
         self.piece_type = piece_type
         self.piece_color = piece_color
+
+
+def invert_color(piece_color):
+
+    if piece_color is None:
+        return None
+    if piece_color == PieceColor.WHITE:
+        return PieceColor.BLACK
+    elif piece_color == PieceColor.BLACK:
+        return PieceColor.WHITE
+    else:
+        raise NotImplementedError()
