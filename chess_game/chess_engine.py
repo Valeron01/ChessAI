@@ -175,7 +175,10 @@ class MoveChecker:
         for i in range(8):
             for j in range(8):
                 if field[i, j].piece_color == opponent_color:
-                    if MoveChecker.check_move(field, i, j, target_row, target_column):
+                    if field[i, j].piece_type == PieceType.KING:
+                        if abs(i - target_row) <= 1 or abs(j - target_column) <= 1:
+                            return False
+                    elif MoveChecker.check_move(field, i, j, target_row, target_column):
                         return False
 
         return True
@@ -243,7 +246,8 @@ class ChessEngine:
         self.__dead_blacks = dead_blacks
 
     def make_step(self, source_row, source_column, target_row, target_column):
-        is_step_possible = MoveChecker.check_move(
+        is_step_possible = self.field[source_row, source_column].piece_color == self.current_player_color
+        is_step_possible = is_step_possible and MoveChecker.check_move(
             self.field, source_row, source_column, target_row, target_column
         )
         return_dict = {}
@@ -259,6 +263,9 @@ class ChessEngine:
                 step_result = StepResult.PERFORMED_KILL
             else:
                 step_result = StepResult.PERFORMED
+                return_dict["moved_piece"] = self.field[source_row, source_column]
+
+            self.current_player_color = invert_color(self.current_player_color)
 
             self.field[target_row, target_column] = self.field[source_row, source_column]
             self.field[source_row, source_column] = Piece(PieceType.EMPTY, None)

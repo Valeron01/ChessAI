@@ -68,8 +68,6 @@ class BasicTransformerModel(nn.Module):
 
         self.mlp_value = nn.Sequential(
             DenseResBlock(dim_model, dim_feedforward),
-            DenseResBlock(dim_model, dim_feedforward),
-            DenseResBlock(dim_model, dim_feedforward),
             nn.Linear(dim_model, 1)
         )
 
@@ -84,7 +82,9 @@ class BasicTransformerModel(nn.Module):
         field_tensor_flattened = field_tensor.flatten(1)
         embeddings = self.pieces_embedding[field_tensor_flattened]
         embeddings_with_pos_encoding = self.position_encoding + embeddings
-        with torch.autocast(field_tensor.device.type, torch.float16):
+        with torch.autocast(field_tensor.device.type, torch.float16), torch.backends.cuda.sdp_kernel(
+                enable_flash=True, enable_math=False, enable_mem_efficient=False, enable_cudnn=True
+        ):
             transformer = self.transformer(embeddings_with_pos_encoding)
             source_embeddings = self.transformer_source(transformer)
             target_embeddings = self.transformer_target(transformer)
