@@ -59,6 +59,7 @@ class ChessField:
 
     def flipped_sides(self):
         self_copy = copy.deepcopy(self)
+        self_copy.__field_array = np.flip(self_copy.__field_array, axis=[0, 1])
         for i in range(8):
             for j in range(8):
                 piece = self_copy[i, j]
@@ -262,3 +263,4 @@ class ChessEngine:
 if __name__ == '__main__':
     f = ChessField.init_game()
     print(f.__field_array)
+
