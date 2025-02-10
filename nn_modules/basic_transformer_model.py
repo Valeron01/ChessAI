@@ -28,7 +28,6 @@ class DenseResBlock(nn.Module):
         return self.blocks(x) + x
 
 
-
 class BasicTransformerModel(nn.Module):
     def __init__(self, dim_model: int, n_heads: int, dim_feedforward: int, n_layers: int, n_layers_head: int):
         super().__init__()
@@ -102,7 +101,6 @@ class BasicTransformerModel(nn.Module):
         actor_logits = self.mlp_actor(actor_features).squeeze(-1)
         value = self.mlp_value(critic_embeddings).squeeze(-1)
         return torch.distributions.Categorical(logits=actor_logits), value
-
 
 
 if __name__ == '__main__':

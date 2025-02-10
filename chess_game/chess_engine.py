@@ -2,7 +2,7 @@ import copy
 import enum
 
 import numpy as np
-from common_things import Piece, PieceType, PieceColor, invert_color
+from chess_game.common_things import Piece, PieceType, PieceColor, invert_color
 
 
 class ChessField:
@@ -163,6 +163,25 @@ class MoveChecker:
         )
 
     @staticmethod
+    def __check_move_king(field: ChessField, source_row, source_column, target_row, target_column):
+        delta_row = target_row - source_row
+        delta_col = target_column - source_column
+
+        if abs(delta_row) > 1 or abs(delta_col) > 1:
+            return False
+
+        king_color = field[source_row, source_column].piece_color
+        opponent_color = invert_color(king_color)
+        for i in range(8):
+            for j in range(8):
+                if field[i, j].piece_color == opponent_color:
+                    if MoveChecker.check_move(field, i, j, target_row, target_column):
+                        return False
+
+        return True
+
+
+    @staticmethod
     def check_move(field: ChessField, source_row, source_column, target_row, target_column):
         try:
             target_piece = field[target_row, target_column]
@@ -195,7 +214,7 @@ class MoveChecker:
             return MoveChecker.__check_move_queen(field, source_row, source_column, target_row, target_column)
 
         if source_piece.piece_type == PieceType.KING:
-            return False
+            return MoveChecker.__check_move_king(field, source_row, source_column, target_row, target_column)
 
         raise NotImplementedError()
 
@@ -254,10 +273,8 @@ class ChessEngine:
         )
 
 
-
-
-
-
+def invert_move(src_x, src_y, tgt_x, tgt_y):
+    return 7 - src_x, 7 - src_y, 7 - tgt_x, 7 - tgt_y
 
 
 if __name__ == '__main__':

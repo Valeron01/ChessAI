@@ -4,8 +4,8 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-from chess_engine import ChessField
-from common_things import PieceType, PieceColor, Piece
+from chess_game.chess_engine import ChessField
+from chess_game.common_things import PieceType, PieceColor, Piece
 
 
 class PieceRenderer:
@@ -14,7 +14,7 @@ class PieceRenderer:
         self.field_size = field_size
         self.cell_size = cell_size
         self.font_size = cell_size * 80 // 64
-        self.font = ImageFont.truetype(r"./meta/FreeSerif.ttf", self.font_size)
+        self.font = ImageFont.truetype(r"./chess_game/meta/FreeSerif.ttf", self.font_size)
         self.font_color = font_color
         self.pieces = {
             PieceColor.BLACK: {
