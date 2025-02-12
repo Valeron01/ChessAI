@@ -2,16 +2,24 @@ import cv2
 import torch
 
 from chess_env import ChessEnv
+from chess_game.chess_engine import ChessField
 from chess_game.common_things import PieceColor
 from chess_game.renderer import PieceRenderer
 from nn_modules.basic_transformer_model import BasicTransformerModel
-
+env_params = {
+        "performed_reward": -0.00005,
+        "blocked_reward": -0.2,
+        "terminate_iters": 512,
+        "fifty_rule_steps": 15,
+        "fifty_rule_penalty": -0.2,
+        "rand_field_prob": 0.00
+    }
 env = ChessEnv(
-    0, 0, 1000, 50, 0
+    **env_params
 )
 
 model = torch.load(
-    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_68/Checkpoints/Checkpoint.pt"
+    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_47/Checkpoints/Checkpoint.pt"
 ).eval().requires_grad_(False)
 renderer = PieceRenderer(64)
 device = "cuda"
@@ -32,7 +40,7 @@ for i_step in range(0, 1000):
         reward_whites, reward_blacks, done, step_result = env.step_whites(step_index)
     else:
         reward_whites, reward_blacks, done, step_result = env.step_blacks(step_index)
-    print(reward_whites)
+    print(reward_whites, reward_blacks)
 
     print(done)
 

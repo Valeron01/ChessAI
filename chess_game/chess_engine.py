@@ -31,6 +31,16 @@ class ChessField:
 
         return ChessField(field)
 
+    @staticmethod
+    def init_random():
+        field = ChessField.init_game()
+        arr = field.__field_array
+        arr = arr.flatten()
+        np.random.shuffle(arr)
+        arr = arr.reshape([8, 8])
+        field.__field_array = arr
+        return field
+
     def __init__(self, field_array: np.ndarray[Piece]):
         assert field_array.shape == (8, 8)
         self.__field_array = field_array
@@ -59,7 +69,7 @@ class ChessField:
 
     def flipped_sides(self):
         self_copy = copy.deepcopy(self)
-        self_copy.__field_array = np.flip(self_copy.__field_array, axis=[0, 1])
+        self_copy.__field_array = np.flip(self_copy.__field_array, axis=[0])
         for i in range(8):
             for j in range(8):
                 piece = self_copy[i, j]
@@ -281,7 +291,7 @@ class ChessEngine:
 
 
 def invert_move(src_x, src_y, tgt_x, tgt_y):
-    return 7 - src_x, 7 - src_y, 7 - tgt_x, 7 - tgt_y
+    return src_x, 7 - src_y, tgt_x, 7 - tgt_y
 
 
 if __name__ == '__main__':

@@ -36,30 +36,30 @@ def main():
     )
     model_hparams = {
         "dim_model": 128,
-        "n_heads": 2,
-        "dim_feedforward": 384,
+        "n_heads": 4,
+        "dim_feedforward": 256,
         "n_layers": 5,
-        "n_layers_head": 2
+        "n_layers_head": 1
     }
     device = "cuda:0"
     n_iterations = 10000000
     batch_size = 128
-    lr = 7e-5
-    n_epochs = 6 # Try a Different epoch count
-    gamma = 0.95
-    num_actions_to_collect = 2048
+    lr = 8e-5
+    n_epochs = 8 # Try a Different epoch count
+    gamma = 0.8
+    num_actions_to_collect = 4096
     epsilon = 0.2
-    entropy_coefficient = 0.001
+    entropy_coefficient = 0.01
     return_coefficient = 0.5
-    n_envs = 32
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
-        "performed_reward": 0.05,
-        "blocked_reward": -1,
-        "terminate_iters": 512,
-        "fifty_rule_steps": 25,
-        "fifty_rule_penalty": -6
+        "performed_reward": 0.02,
+        "blocked_reward": -5,
+        "terminate_iters": 256,
+        "fifty_rule_steps": 10,
+        "fifty_rule_penalty": -0.2,
+        "rand_field_prob": 0.2
     }
     hparam_dict = {
         "n_iterations": n_iterations,
@@ -77,12 +77,11 @@ def main():
     hparam_dict.update(model_hparams)
     writer.add_hparams(hparam_dict, metric_dict={"default_hp": -1})
 
-    envs = [ChessEnv(**env_params) for _ in range(n_envs)]
-
+    env = ChessEnv(**env_params)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
-    blacks_penalties = [0 for _ in range(n_envs)]
-    white_penalties = [0 for _ in range(n_envs)]
+    black_penalty = 0
+    white_penalty = 0
     for epoch in range(0, n_iterations):
         print(f"Epoch {epoch}")
         states = []
@@ -92,111 +91,92 @@ def main():
         dones = []
         old_log_probs = []
         side_indices = []
+        blocked = []
 
         model = model.eval()
         n_good_steps = 0
-        n_taken_pieces = 0
-        for i_step in range(0, num_actions_to_collect, n_envs):
-            states_per_env = []
-            side_indices_per_env = []
-            for env_index, env in enumerate(envs):
-                env: ChessEnv
-                current_side = env.chess_game_whites.current_player_color
-                if current_side == PieceColor.WHITE:
-                    state = env.get_state_whites()
-                    side_indices_per_env.append(0)
-                else:
-                    state = env.get_state_blacks()
-                    side_indices_per_env.append(1)
-                states_per_env.append(state[None])
-            side_indices.append(side_indices_per_env)
-
-            states_per_env = torch.cat(states_per_env, dim=0).to(device)
-            with torch.inference_mode():
-                actions_per_env, values_per_env = model(states_per_env)
-            actions_per_env_sampled = actions_per_env.sample()
-            old_log_probs.append(actions_per_env.log_prob(actions_per_env_sampled)[None])
-            actions_per_env_sampled = actions_per_env_sampled.cpu()
-
-            rewards_per_env = []
-            dones_per_env = []
-            for env_index, env in enumerate(envs):
-                env: ChessEnv
-                current_side = env.chess_game_whites.current_player_color
-                step_index = actions_per_env_sampled[env_index].item()
-                if current_side == PieceColor.WHITE:
-                    reward_whites, reward_blacks, done, step_result = env.step_whites(step_index)
-                    blacks_penalties[env_index] = reward_blacks
-                    total_reward = reward_whites + white_penalties[env_index]
-                    white_penalties[env_index] = 0
-                else:
-                    reward_blacks, reward_whites, done, step_result = env.step_blacks(step_index)
-                    white_penalties[env_index] = reward_whites
-                    total_reward = reward_blacks + blacks_penalties[env_index]
-                    blacks_penalties[env_index] = 0
-                rewards_per_env.append(total_reward)
-                dones_per_env.append(done)
-
-                if step_result != StepResult.INVALID_MOVE:
-                    n_good_steps += 1
-                if step_result == StepResult.PERFORMED_KILL:
-                    n_taken_pieces += 1
-                if done:
-                    print("Env is done")
-                    envs[env_index] = ChessEnv(**env_params)
-                    blacks_penalties[env_index] = 0
-                    white_penalties[env_index] = 0
-
-            rewards_per_env = torch.FloatTensor(rewards_per_env)
-            dones_per_env = torch.FloatTensor(dones_per_env)
-
-            rewards.append(rewards_per_env)
-            states.append(states_per_env[None])
-            actions.append(actions_per_env_sampled[None])
-            dones.append(dones_per_env[None])
-            values.append(values_per_env[None])
-
-        # Last step evaluation
-        states_per_env = []
-        for env_index, env in enumerate(envs):
-            env: ChessEnv
+        n_taken_pieces_white = 0
+        n_taken_pieces_black = 0
+        for i_step in range(0, num_actions_to_collect):
             current_side = env.chess_game_whites.current_player_color
             if current_side == PieceColor.WHITE:
                 state = env.get_state_whites()
+                side_indices.append(0)
             else:
                 state = env.get_state_blacks()
-            states_per_env.append(state[None])
+                side_indices.append(1)
+            state = state[None]
+            states.append(state)
+            with torch.inference_mode():
+                action, value = model(state)
 
-        states_per_env = torch.cat(states_per_env, dim=0).to(device)
+            action_sampled = action.sample()
+            old_log_probs.append(action.log_prob(action_sampled))
+
+            step_index = action_sampled.item()
+            reward = 0
+            if current_side == PieceColor.WHITE:
+                reward_whites, reward_blacks, done, step_result = env.step_whites(step_index)
+                reward = reward_whites + white_penalty
+                black_penalty = reward_blacks
+                white_penalty = 0
+            else:
+                reward_blacks, reward_whites, done, step_result = env.step_blacks(step_index)
+                reward = reward_blacks + black_penalty
+                white_penalty = reward_whites
+                black_penalty = 0
+
+            if step_result != StepResult.INVALID_MOVE:
+                n_good_steps += 1
+            if step_result == StepResult.PERFORMED_KILL:
+                if current_side == PieceColor.WHITE:
+                    n_taken_pieces_white += 1
+                else:
+                    n_taken_pieces_black += 1
+            blocked.append(step_result == StepResult.INVALID_MOVE)
+            if done:
+                print("Env is done")
+                env = ChessEnv(**env_params)
+                white_penalty = 0
+                black_penalty = 0
+
+            rewards.append(reward)
+            actions.append(action_sampled)
+            dones.append(done)
+            values.append(value)
+
         with torch.inference_mode():
-            _, last_values_per_env = model(states_per_env)
+            _, last_value_white = model(env.get_state_whites()[None].to(device))
+            _, last_value_black = model(env.get_state_blacks()[None].to(device))
+            last_value_black = last_value_black * (1 - dones[-1])
+            last_value_white = last_value_white * (1 - dones[-1])
 
         states = torch.cat(states, 0).to(device)
         rewards = torch.from_numpy(np.float32(rewards))
         dones = torch.from_numpy(np.float32(dones))
         actions = torch.cat(actions, 0).to(device)
         old_log_probs = torch.cat(old_log_probs, 0).to(device)
+        blocked = torch.FloatTensor(blocked)
 
-        last_values_per_env = last_values_per_env.cpu() * (1 - dones[-1])
         side_indices = torch.from_numpy(np.int32(side_indices))
         rewards_whites = rewards[side_indices == 0]
         rewards_blacks = rewards[side_indices == 1]
-        print(side_indices.shape)
-        print(rewards.shape)
-        print(rewards_whites.shape)
-        rewards_whites[-1] += torch.FloatTensor(white_penalties)
-        rewards_blacks[-1] += torch.FloatTensor(blacks_penalties)
-        assert False
-        returns = compute_returns(
-            rewards, gamma, dones, last_values_per_env
-        ).to(device)
+        returns = torch.zeros_like(rewards).to(device)
+        if rewards_whites.shape[0] != 0:
+            rewards_whites[-1] += white_penalty
+
+            returns_whites = compute_returns(
+                rewards_whites.cpu(), gamma, dones, last_value_white.cpu()
+            ).to(device)
+            returns[side_indices == 0] = returns_whites
+        if rewards_blacks.shape[0] != 0:
+            rewards_blacks[-1] += black_penalty
+            returns_blacks = compute_returns(
+                rewards_blacks.cpu(), gamma, dones, last_value_black.cpu()
+            ).to(device)
+            returns[side_indices == 1] = returns_blacks
 
         model = model.train()
-        states = states.flatten(0, 1)
-        returns = returns.flatten(0, 1)
-        actions = actions.flatten(0, 1)
-        old_log_probs = old_log_probs.flatten(0, 1)
-
         for i in trange(num_actions_to_collect * n_epochs // batch_size):
             samples_indices = torch.randint(0, states.shape[0], [batch_size])
 
@@ -239,7 +219,10 @@ def main():
         writer.add_scalar("mean_rewards", rewards.mean(), epoch)
         writer.add_scalar("mean_rewards_abs", rewards.abs().mean(), epoch)
         writer.add_scalar("good_steps_percentage", n_good_steps / num_actions_to_collect, epoch)
-        writer.add_scalar("n_taken_pieces", n_taken_pieces, epoch)
+        writer.add_scalar("n_taken_pieces_white", n_taken_pieces_white, epoch)
+        writer.add_scalar("n_taken_pieces_black", n_taken_pieces_black, epoch)
+        writer.add_scalar("mean_reward_white", rewards_whites.mean(), epoch)
+        writer.add_scalar("mean_reward_black", rewards_blacks.mean(), epoch)
 
 
 if __name__ == '__main__':

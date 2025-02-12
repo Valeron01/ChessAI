@@ -83,7 +83,7 @@ class BasicTransformerModel(nn.Module):
         embeddings = self.pieces_embedding[field_tensor_flattened]
         embeddings_with_pos_encoding = self.position_encoding + embeddings
         with torch.autocast(field_tensor.device.type, torch.float16), torch.backends.cuda.sdp_kernel(
-                enable_flash=True, enable_math=False, enable_mem_efficient=False, enable_cudnn=True
+                enable_flash=True, enable_math=False, enable_mem_efficient=True, enable_cudnn=True
         ):
             transformer = self.transformer(embeddings_with_pos_encoding)
             source_embeddings = self.transformer_source(transformer)

@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import torch
 
@@ -6,7 +8,7 @@ from chess_game.chess_engine import ChessField, ChessEngine, PieceColor, PieceTy
 
 class ChessEnv:
     def __init__(
-            self, performed_reward, blocked_reward, terminate_iters, fifty_rule_steps, fifty_rule_penalty
+            self, performed_reward, blocked_reward, terminate_iters, fifty_rule_steps, fifty_rule_penalty, rand_field_prob
     ):
         self.fifty_rule_penalty = fifty_rule_penalty
         self.fifty_rule_steps = fifty_rule_steps
@@ -14,6 +16,9 @@ class ChessEnv:
         self.blocked_reward = blocked_reward
         self.performed_reward = performed_reward
         self.chess_game_whites = ChessEngine.init_game()
+
+        if rand_field_prob > random.random():
+            self.chess_game_whites.field = ChessField.init_random()
 
         self.reward_kill = {
             PieceType.PAWN: 1,
@@ -103,7 +108,7 @@ class ChessEnv:
         reward_blacks = 0
         reward_whites = 0
         if step_result == StepResult.PERFORMED:
-            reward_whites = self.performed_reward
+            reward_blacks = self.performed_reward
             if step_dict["moved_piece"] != PieceType.PAWN:
                 self.reversible_steps_black += 1
             else:
