@@ -30,34 +30,6 @@ def compute_returns_per_env(rewards, gamma, dones, side_indices, last_values_whi
     return returns_result
 
 
-def main_test_returns_computation():
-    rewards = torch.FloatTensor([
-        [0, 0, 0],
-        [0, 1, 0],
-        [1, 0, 0],
-        [1, 1, 1],
-        [3, 0, 1],
-        [-5, 1, 0]
-    ])
-    dones = torch.FloatTensor([
-        [0, 0, 0],
-        [0, 0, 0],
-        [1, 0, 0],
-        [0, 1, 0],
-        [0, 0, 0],
-        [0, 0, 1]
-    ])
-    side_indices = torch.IntTensor([
-        [0, 1, 0],
-        [1, 0, 0],
-        [0, 0, 0],
-        [1, 0, 1],
-        [0, 1, 0],
-        [1, 0, 0]
-    ])
-    returns = compute_returns_per_env(rewards, 0.9, dones, side_indices, torch.zeros([3]), torch.zeros([3]) + 1)
-    print(returns)
-
 
 def main():
     seed = 0
@@ -136,7 +108,7 @@ def main():
             states_per_env = []
             side_indices_per_inv = []
             for env_index, env in enumerate(envs):
-                current_side = env.chess_game_whites.current_player_color
+                current_side = env.chess_game.current_player_color
                 if current_side == PieceColor.WHITE:
                     state = env.get_state_whites()
                     side_indices_per_inv.append(0)
@@ -160,7 +132,7 @@ def main():
 
             for env_index, env in enumerate(envs):
                 step_index = actions_sampled[env_index].item()
-                current_side = env.chess_game_whites.current_player_color
+                current_side = env.chess_game.current_player_color
                 reward = 0
                 if current_side == PieceColor.WHITE:
                     reward_whites, reward_blacks, done, step_result = env.step_whites(step_index)
