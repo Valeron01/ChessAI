@@ -36,6 +36,7 @@ class ChessEnv:
         }
 
         self.steps_made = 0
+        self.invertable_steps_made = 0
 
     def get_state(self) -> torch.Tensor:
         field = self.chess_game.field
@@ -55,6 +56,45 @@ class ChessEnv:
 
                 result[i, j] = piece_index + 1
         return torch.from_numpy(result)
+
+    def step(self, action: int):
+        source_row, source_column, target_row, target_column = np.unravel_index(action, [8, 8, 8, 8])
+
+        if self.chess_game.current_player_color == PieceColor.BLACK:
+            source_row, source_column, target_row, target_column = invert_move(
+                source_row, source_column, target_row, target_column
+            )
+
+        step_result, moved_piece, killed_piece = self.chess_game.make_step(source_row, source_column, target_row, target_column)
+        reward = 0
+        done = False
+        terminated = False
+        if step_result == StepResult.INVALID_MOVE:
+            reward = self.blocked_reward
+
+        if killed_piece is not None:
+            reward = self.reward_kill[killed_piece]
+        else:
+            reward = self.performed_reward
+
+        if killed_piece == PieceType.KING:
+            done = True
+
+        if moved_piece != PieceType.PAWN and killed_piece is None:
+            self.invertable_steps_made += 1
+
+        if self.invertable_steps_made >= self.fifty_rule_steps:
+            terminated = True
+            reward = self.fifty_rule_penalty
+
+        if self.steps_made >= self.terminate_iters:
+            terminated = True
+
+        return reward, terminated, done
+
+
+
+
 
 
 

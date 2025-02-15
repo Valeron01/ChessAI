@@ -260,8 +260,9 @@ class ChessEngine:
         is_step_possible = is_step_possible and MoveChecker.check_move(
             self.field, source_row, source_column, target_row, target_column
         )
-        return_dict = {}
         step_result = StepResult.INVALID_MOVE
+        killed_piece = None
+        moved_piece = None
         if is_step_possible:
             target_piece = self.field[target_row, target_column]
             if target_piece.piece_type != PieceType.EMPTY:
@@ -269,18 +270,18 @@ class ChessEngine:
                     self.__dead_blacks.append(target_piece.piece_type)
                 if target_piece.piece_color == PieceColor.WHITE:
                     self.__dead_whites.append(target_piece.piece_type)
-                return_dict["killed_piece"] = target_piece.piece_type
+                killed_piece = target_piece.piece_type
                 step_result = StepResult.PERFORMED_KILL
             else:
                 step_result = StepResult.PERFORMED
-                return_dict["moved_piece"] = self.field[source_row, source_column]
+                moved_piece = self.field[source_row, source_column].piece_type
 
             self.current_player_color = invert_color(self.current_player_color)
 
             self.field[target_row, target_column] = self.field[source_row, source_column]
             self.field[source_row, source_column] = Piece(PieceType.EMPTY, None)
 
-        return step_result, return_dict
+        return step_result, moved_piece, killed_piece
 
     def flipped_sides(self):
         board_inverted = self.field.flipped_sides()
@@ -289,12 +290,6 @@ class ChessEngine:
             board_inverted, player_color, copy.deepcopy(self.__dead_blacks), copy.deepcopy(self.__dead_whites)
         )
 
-
-def invert_move(src_x, src_y, tgt_x, tgt_y):
-    return src_x, 7 - src_y, tgt_x, 7 - tgt_y
-
-
-if __name__ == '__main__':
-    f = ChessField.init_game()
-    print(f.__field_array)
-
+    @staticmethod
+    def flip_move(source_row, source_column, target_row, target_column):
+        return 7 - source_row, source_column, 7 - target_row, target_column
