@@ -91,11 +91,3 @@ class ChessEnv:
             terminated = True
 
         return reward, terminated, done
-
-
-
-
-
-
-
-

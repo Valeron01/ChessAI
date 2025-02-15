@@ -30,7 +30,6 @@ def compute_returns_per_env(rewards, gamma, dones, side_indices, last_values_whi
     return returns_result
 
 
-
 def main():
     seed = 0
     torch.random.manual_seed(seed)
@@ -86,18 +85,15 @@ def main():
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
-    black_penalties_per_env = [0 for _ in range(n_envs)]
-    white_penalty_per_env = [0 for _ in range(n_envs)]
     envs = [ChessEnv(**env_params) for _ in range(n_envs)]
     for epoch in range(0, n_iterations):
         states = []
         rewards = []
         actions = []
-        values = []
+        # values = []
         dones = []
+        terminates = []
         old_log_probs = []
-        side_indices = []
-        blocked = []
 
         model = model.eval()
         n_good_steps = 0
@@ -106,91 +102,32 @@ def main():
 
         for i_step in range(0, num_actions_to_collect, n_envs):
             states_per_env = []
-            side_indices_per_inv = []
             for env_index, env in enumerate(envs):
-                current_side = env.chess_game.current_player_color
-                if current_side == PieceColor.WHITE:
-                    state = env.get_state_whites()
-                    side_indices_per_inv.append(0)
-                else:
-                    state = env.get_state_blacks()
-                    side_indices_per_inv.append(1)
-                state = state[None]
-                states_per_env.append(state)
+                env_state = env.state()[None]
+                states_per_env.append(env_state)
 
-            side_indices.append(side_indices_per_inv)
-            states_per_env = torch.cat(states_per_env, 0)
-            states.append(states_per_env)
+            states_per_env = torch.cat(states_per_env, 0).to(device)
             with torch.inference_mode():
-                actions_per_env, values_per_env = model(states_per_env)
+                distributions_per_env, values = model(states_per_env)
+            actions_sampled_per_env = distributions_per_env.sample()
 
-            actions_sampled = actions_per_env.sample()
-            old_log_probs.append(actions_per_env.log_prob(actions_sampled))
+            actions.append(actions_sampled_per_env[None])
+            old_log_probs.append(distributions_per_env.log_prob(actions_sampled_per_env)[None])
+            states.append(states_per_env[None])
 
             rewards_per_env = []
+            terminates_per_env = []
             dones_per_env = []
-
             for env_index, env in enumerate(envs):
-                step_index = actions_sampled[env_index].item()
-                current_side = env.chess_game.current_player_color
-                reward = 0
-                if current_side == PieceColor.WHITE:
-                    reward_whites, reward_blacks, done, step_result = env.step_whites(step_index)
-                    reward = reward_whites + white_penalty_per_env[env_index]
-                    black_penalty = reward_blacks
-                    white_penalty_per_env[env_index] = 0
-                else:
-                    reward_blacks, reward_whites, done, step_result = env.step_blacks(step_index)
-                    reward = reward_blacks + black_penalties_per_env[env_index]
-                    white_penalty = reward_whites
-                    black_penalties_per_env[env_index] = 0
-
-                if step_result != StepResult.INVALID_MOVE:
-                    n_good_steps += 1
-                if step_result == StepResult.PERFORMED_KILL:
-                    if current_side == PieceColor.WHITE:
-                        n_taken_pieces_white += 1
-                    else:
-                        n_taken_pieces_black += 1
-                blocked.append(step_result == StepResult.INVALID_MOVE)
-
+                reward, terminated, done = env.step()
                 rewards_per_env.append(reward)
+                terminates_per_env.append(terminated)
                 dones_per_env.append(done)
-                if done:
-                    print("Env is done")
-                    envs[env_index] = ChessEnv(**env_params)
-                    white_penalty_per_env[env_index] = 0
-                    black_penalties_per_env[env_index] = 0
 
             rewards.append(rewards_per_env)
-            actions.append(actions_sampled)
+            terminates.append(terminates_per_env)
             dones.append(dones_per_env)
-            values.append(values_per_env)
 
-        dones_per_env = dones[-1]
-        last_values_white_per_env = []
-        last_values_black_per_env = []
-        for env_index, env in enumerate(envs):
-            with torch.inference_mode():
-                _, last_value_white = model(env.get_state_whites()[None].to(device))
-                _, last_value_black = model(env.get_state_blacks()[None].to(device))
-                last_value_black = last_value_black * (1 - dones_per_env[env_index])
-                last_value_white = last_value_white * (1 - dones_per_env[env_index])
-
-                last_values_white_per_env.append(last_value_white)
-                last_values_black_per_env.append(last_value_black)
-        last_values_white_per_env = torch.cat(last_values_white_per_env, 0).cpu()
-        last_values_black_per_env = torch.cat(last_values_black_per_env, 0).cpu()
-        states = torch.cat(states, 0).to(device)
-        rewards = torch.from_numpy(np.float32(rewards))
-        dones = torch.from_numpy(np.float32(dones))
-        actions = torch.cat(actions, 0).to(device)
-        old_log_probs = torch.cat(old_log_probs, 0).to(device)
-        side_indices = torch.from_numpy(np.int32(side_indices))
-
-        returns = compute_returns_per_env(
-            rewards, gamma, dones, side_indices, last_values_white_per_env, last_values_black_per_env
-        ).to(device).flatten(0, 1)
 
         model = model.train()
         for i in trange(num_actions_to_collect * n_epochs // batch_size):
