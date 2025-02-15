@@ -3,7 +3,7 @@ import random
 import numpy as np
 import torch
 
-from chess_game.chess_engine import ChessField, ChessEngine, PieceColor, PieceType, StepResult, invert_move
+from chess_game.chess_engine import ChessField, ChessEngine, PieceColor, PieceType, StepResult
 
 
 class ChessEnv:
@@ -37,8 +37,9 @@ class ChessEnv:
 
         self.steps_made = 0
         self.invertable_steps_made = 0
+        self.good_steps = 0
 
-    def get_state(self) -> torch.Tensor:
+    def state(self) -> torch.Tensor:
         field = self.chess_game.field
         if self.chess_game.current_player_color == PieceColor.BLACK:
             field = self.chess_game.field.flipped_sides()
@@ -61,7 +62,7 @@ class ChessEnv:
         source_row, source_column, target_row, target_column = np.unravel_index(action, [8, 8, 8, 8])
 
         if self.chess_game.current_player_color == PieceColor.BLACK:
-            source_row, source_column, target_row, target_column = invert_move(
+            source_row, source_column, target_row, target_column = ChessField.flip_move(
                 source_row, source_column, target_row, target_column
             )
 
@@ -71,21 +72,22 @@ class ChessEnv:
         terminated = False
         if step_result == StepResult.INVALID_MOVE:
             reward = self.blocked_reward
-
-        if killed_piece is not None:
-            reward = self.reward_kill[killed_piece]
         else:
-            reward = self.performed_reward
+            self.good_steps += 1
+            if killed_piece is not None:
+                reward = self.reward_kill[killed_piece]
+            else:
+                reward = self.performed_reward
 
-        if killed_piece == PieceType.KING:
-            done = True
+            if killed_piece == PieceType.KING:
+                done = True
 
-        if moved_piece != PieceType.PAWN and killed_piece is None:
-            self.invertable_steps_made += 1
+            if moved_piece != PieceType.PAWN and killed_piece is None:
+                self.invertable_steps_made += 1
 
-        if self.invertable_steps_made >= self.fifty_rule_steps:
-            terminated = True
-            reward = self.fifty_rule_penalty
+            if self.invertable_steps_made >= self.fifty_rule_steps:
+                terminated = True
+                reward = self.fifty_rule_penalty
 
         if self.steps_made >= self.terminate_iters:
             terminated = True

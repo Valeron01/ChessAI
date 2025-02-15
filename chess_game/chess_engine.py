@@ -76,6 +76,10 @@ class ChessField:
                 piece.piece_color = invert_color(piece.piece_color)
         return self_copy
 
+    @staticmethod
+    def flip_move(source_row, source_column, target_row, target_column):
+        return 7 - source_row, source_column, 7 - target_row, target_column
+
 
 class MoveChecker:
     @staticmethod
@@ -252,8 +256,8 @@ class ChessEngine:
     def __init__(self, field: ChessField, current_player_color: PieceColor, dead_whites, dead_blacks):
         self.field = field
         self.current_player_color = current_player_color
-        self.__dead_whites = dead_whites
-        self.__dead_blacks = dead_blacks
+        self.dead_whites = dead_whites
+        self.dead_blacks = dead_blacks
 
     def make_step(self, source_row, source_column, target_row, target_column):
         is_step_possible = self.field[source_row, source_column].piece_color == self.current_player_color
@@ -267,9 +271,9 @@ class ChessEngine:
             target_piece = self.field[target_row, target_column]
             if target_piece.piece_type != PieceType.EMPTY:
                 if target_piece.piece_color == PieceColor.BLACK:
-                    self.__dead_blacks.append(target_piece.piece_type)
+                    self.dead_blacks.append(target_piece.piece_type)
                 if target_piece.piece_color == PieceColor.WHITE:
-                    self.__dead_whites.append(target_piece.piece_type)
+                    self.dead_whites.append(target_piece.piece_type)
                 killed_piece = target_piece.piece_type
                 step_result = StepResult.PERFORMED_KILL
             else:
@@ -287,9 +291,5 @@ class ChessEngine:
         board_inverted = self.field.flipped_sides()
         player_color = invert_color(self.current_player_color)
         return ChessEngine(
-            board_inverted, player_color, copy.deepcopy(self.__dead_blacks), copy.deepcopy(self.__dead_whites)
+            board_inverted, player_color, copy.deepcopy(self.dead_blacks), copy.deepcopy(self.dead_whites)
         )
-
-    @staticmethod
-    def flip_move(source_row, source_column, target_row, target_column):
-        return 7 - source_row, source_column, 7 - target_row, target_column

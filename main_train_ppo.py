@@ -8,24 +8,19 @@ from tqdm import trange
 
 import tb_utils
 from chess_env import ChessEnv
-from chess_game.chess_engine import StepResult
-from chess_game.common_things import PieceColor
 from nn_modules.basic_transformer_model import BasicTransformerModel
 
 
-def compute_returns_per_env(rewards, gamma, dones, side_indices, last_values_whites, last_values_black):
+def compute_returns_per_env(rewards, gamma, dones, last_values):
     assert rewards.ndim == 2
     assert dones.ndim == 2
+    assert last_values.ndim == 1
     returns_result = torch.zeros_like(rewards)
-    returns_cumsum = torch.cat([last_values_whites[..., None] * 0, last_values_black[..., None] * 0], dim=-1)
-    env_indices = torch.arange(returns_cumsum.shape[0])
+    returns_cumsum = last_values * dones[-1]
     for frame_index in reversed(range(rewards.shape[0])):
-        indices = side_indices[frame_index]
-        returns_cumsum[env_indices, indices] *= 1 - dones[frame_index]
-
-        returns_cumsum[env_indices, indices] = rewards[frame_index] + returns_cumsum[env_indices, indices] * gamma
-
-        returns_result[frame_index] = returns_cumsum[env_indices, indices]
+        returns_cumsum *= 1 - dones[frame_index]
+        returns_cumsum = rewards[frame_index] + returns_cumsum * gamma
+        returns_result[frame_index] = returns_cumsum
 
     return returns_result
 
@@ -52,11 +47,11 @@ def main():
     lr = 6e-5
     n_epochs = 8 # Try a Different epoch count
     gamma = 0.8
-    num_actions_to_collect = 4096
+    num_actions_to_collect = 2048
     epsilon = 0.2
     entropy_coefficient = 0.005
     return_coefficient = 2
-    n_envs = 1
+    n_envs = 16
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
@@ -65,7 +60,7 @@ def main():
         "terminate_iters": 256,
         "fifty_rule_steps": 30,
         "fifty_rule_penalty": -2,
-        "rand_field_prob": 0.0
+        "rand_field_prob": 0.5
     }
     hparam_dict = {
         "n_iterations": n_iterations,
@@ -87,6 +82,7 @@ def main():
 
     envs = [ChessEnv(**env_params) for _ in range(n_envs)]
     for epoch in range(0, n_iterations):
+        env_logs = []
         states = []
         rewards = []
         actions = []
@@ -101,12 +97,7 @@ def main():
         n_taken_pieces_black = 0
 
         for i_step in range(0, num_actions_to_collect, n_envs):
-            states_per_env = []
-            for env_index, env in enumerate(envs):
-                env_state = env.state()[None]
-                states_per_env.append(env_state)
-
-            states_per_env = torch.cat(states_per_env, 0).to(device)
+            states_per_env = torch.cat([env.state()[None] for env in envs], 0).to(device)
             with torch.inference_mode():
                 distributions_per_env, values = model(states_per_env)
             actions_sampled_per_env = distributions_per_env.sample()
@@ -118,19 +109,55 @@ def main():
             rewards_per_env = []
             terminates_per_env = []
             dones_per_env = []
+            actions_sampled_per_env = actions_sampled_per_env.cpu()
             for env_index, env in enumerate(envs):
-                reward, terminated, done = env.step()
+                reward, terminated, done = env.step(actions_sampled_per_env[env_index].item())
                 rewards_per_env.append(reward)
                 terminates_per_env.append(terminated)
                 dones_per_env.append(done)
+                
+                if done or terminated:
+                    env_logs.append(env)
+                    envs[env_index] = ChessEnv(**env_params)
 
-            rewards.append(rewards_per_env)
-            terminates.append(terminates_per_env)
-            dones.append(dones_per_env)
+            rewards.append(torch.FloatTensor(rewards_per_env)[None])
+            terminates.append(torch.FloatTensor(terminates_per_env)[None])
+            dones.append(torch.FloatTensor(dones_per_env)[None])
 
+        for i in envs + env_logs:
+            n_good_steps += i.good_steps
+            n_taken_pieces_white += len(i.chess_game.dead_blacks)
+            n_taken_pieces_black += len(i.chess_game.dead_whites)
+
+        rewards = torch.cat(rewards, 0)
+        terminates = torch.cat(terminates, 0)
+        dones = torch.cat(dones, 0)
+        states = torch.cat(states, 0)
+        actions = torch.cat(actions, 0)
+        old_log_probs = torch.cat(old_log_probs, 0)
+        with torch.inference_mode():
+            last_values = model(torch.cat([i.state()[None] for i in envs], 0).to(device))[1].cpu()
+
+        returns = compute_returns_per_env(
+            rewards, gamma, dones, last_values
+        ).to(device)
+
+        # print(rewards.shape)
+        # print(terminates.shape)
+        # print(dones.shape)
+        # print(states.shape)
+        # print(actions.shape)
+        # print(old_log_probs.shape)
+        # print(returns.shape)
+        # assert False
+
+        states = states.flatten(0, 1).to(device)
+        actions = actions.flatten(0, 1).to(device)
+        returns = returns.flatten(0, 1).to(device)
+        old_log_probs = old_log_probs.flatten(0, 1).to(device)
 
         model = model.train()
-        for i in trange(num_actions_to_collect * n_epochs // batch_size):
+        for _ in trange(num_actions_to_collect * n_epochs // batch_size):
             samples_indices = torch.randint(0, states.shape[0], [batch_size])
 
             states_batch = states[samples_indices]
