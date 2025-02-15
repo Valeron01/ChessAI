@@ -44,9 +44,9 @@ def main():
     device = "cuda:0"
     n_iterations = 10000000
     batch_size = 128
-    lr = 6e-5
+    lr = 1e-4
     n_epochs = 8 # Try a Different epoch count
-    gamma = 0.8
+    gamma = 0.9
     num_actions_to_collect = 2048
     epsilon = 0.2
     entropy_coefficient = 0.0001
@@ -55,8 +55,8 @@ def main():
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
-        "performed_reward": 0.1,
-        "blocked_reward": -3,
+        "performed_reward": 0.01,
+        "blocked_reward": -0.03,
         "terminate_iters": 256,
         "fifty_rule_steps": 30,
         "fifty_rule_penalty": -2,
