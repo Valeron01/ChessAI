@@ -49,18 +49,19 @@ def main():
     gamma = 0.9
     num_actions_to_collect = 2048
     epsilon = 0.2
-    entropy_coefficient = 0.0001
-    return_coefficient = 2
+    entropy_coefficient = 0.01
+    return_coefficient = 1
     n_envs = 16
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
-        "performed_reward": 0.01,
-        "blocked_reward": -0.03,
+        "performed_reward": 0.8,
+        "blocked_reward": -10,
         "terminate_iters": 256,
         "fifty_rule_steps": 30,
         "fifty_rule_penalty": -2,
-        "rand_field_prob": 0.5
+        "rand_field_prob": 0.5,
+        "n_bad_steps_to_terminate": 1
     }
     hparam_dict = {
         "n_iterations": n_iterations,

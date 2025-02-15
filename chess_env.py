@@ -14,8 +14,10 @@ class ChessEnv:
             terminate_iters: int,
             fifty_rule_steps: int,
             fifty_rule_penalty: float,
-            rand_field_prob: float
+            rand_field_prob: float,
+            n_bad_steps_to_terminate: int
     ):
+        self.n_bad_steps_to_terminate = n_bad_steps_to_terminate
         self.fifty_rule_penalty = fifty_rule_penalty
         self.fifty_rule_steps = fifty_rule_steps
         self.terminate_iters = terminate_iters
@@ -38,6 +40,7 @@ class ChessEnv:
         self.steps_made = 0
         self.invertable_steps_made = 0
         self.good_steps = 0
+        self.bad_steps = 0
 
     def state(self) -> torch.Tensor:
         field = self.chess_game.field
@@ -73,6 +76,7 @@ class ChessEnv:
         terminated = False
         if step_result == StepResult.INVALID_MOVE:
             reward = self.blocked_reward
+            self.bad_steps += 1
         else:
             self.good_steps += 1
             if killed_piece is not None:
@@ -92,5 +96,7 @@ class ChessEnv:
 
         if self.steps_made >= self.terminate_iters:
             terminated = True
+        if self.bad_steps >= self.n_bad_steps_to_terminate:
+            done = True
 
         return reward, terminated, done
