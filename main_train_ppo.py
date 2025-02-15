@@ -49,13 +49,13 @@ def main():
     gamma = 0.8
     num_actions_to_collect = 2048
     epsilon = 0.2
-    entropy_coefficient = 0.005
+    entropy_coefficient = 0.0001
     return_coefficient = 2
     n_envs = 16
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
-        "performed_reward": 2,
+        "performed_reward": 0.1,
         "blocked_reward": -3,
         "terminate_iters": 256,
         "fifty_rule_steps": 30,
@@ -123,11 +123,12 @@ def main():
             rewards.append(torch.FloatTensor(rewards_per_env)[None])
             terminates.append(torch.FloatTensor(terminates_per_env)[None])
             dones.append(torch.FloatTensor(dones_per_env)[None])
-
+        total_steps = 0
         for i in envs + env_logs:
             n_good_steps += i.good_steps
             n_taken_pieces_white += len(i.chess_game.dead_blacks)
             n_taken_pieces_black += len(i.chess_game.dead_whites)
+            total_steps += i.steps_made
 
         rewards = torch.cat(rewards, 0)
         terminates = torch.cat(terminates, 0)
@@ -198,7 +199,7 @@ def main():
 
         writer.add_scalar("mean_rewards", rewards.mean(), epoch)
         writer.add_scalar("mean_rewards_abs", rewards.abs().mean(), epoch)
-        writer.add_scalar("good_steps_percentage", n_good_steps / num_actions_to_collect, epoch)
+        writer.add_scalar("good_steps_percentage", n_good_steps / total_steps, epoch)
         writer.add_scalar("n_taken_pieces_white", n_taken_pieces_white, epoch)
         writer.add_scalar("n_taken_pieces_black", n_taken_pieces_black, epoch)
 

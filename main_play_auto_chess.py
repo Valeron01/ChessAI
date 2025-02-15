@@ -13,24 +13,20 @@ env_params = {
         "terminate_iters": 512,
         "fifty_rule_steps": 15,
         "fifty_rule_penalty": -0.2,
-        "rand_field_prob": 0.00
+        "rand_field_prob": 0.0
     }
 env = ChessEnv(
     **env_params
 )
 
 model = torch.load(
-    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_8/Checkpoints/Checkpoint.pt"
+    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_12/Checkpoints/Checkpoint.pt"
 ).eval().requires_grad_(False)
 renderer = PieceRenderer(64)
 device = "cuda"
 for i_step in range(0, 10000):
     current_side = env.chess_game.current_player_color
-    if current_side == PieceColor.WHITE:
-        state = env.get_state_whites()
-    else:
-        state = env.get_state_blacks()
-    state = state.to(device)[None]
+    state = env.state().to(device)[None]
 
     with torch.inference_mode():
         actions_per_env, values_per_env = model(state)
@@ -38,13 +34,7 @@ for i_step in range(0, 10000):
     step_index = actions_per_env.sample().item()
     print(np.unravel_index(step_index, [8, 8, 8, 8]))
 
-    if current_side == PieceColor.WHITE:
-        reward_whites, reward_blacks, done, step_result = env.step_whites(step_index)
-    else:
-        reward_whites, reward_blacks, done, step_result = env.step_blacks(step_index)
-    print(reward_whites, reward_blacks)
-
-    print(done)
+    env.step(step_index)
 
     field = env.chess_game.field
 
