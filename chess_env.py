@@ -29,6 +29,15 @@ class ChessEnv:
             PieceType.KING: 20
         }
 
+        # self.reward_kill = {
+        #     PieceType.PAWN: 0,
+        #     PieceType.BISHOP: 0,
+        #     PieceType.KNIGHT: 0,
+        #     PieceType.ROOK: 0,
+        #     PieceType.QUEEN: 0,
+        #     PieceType.KING: 0
+        # }
+
         self.steps_made = 0
 
         self.reversible_steps_white = 0
@@ -88,7 +97,7 @@ class ChessEnv:
             reward_whites = self.blocked_reward
         elif step_result == StepResult.PERFORMED_KILL:
             reward_whites = self.reward_kill[step_dict["killed_piece"]]
-            reward_blacks = -reward_whites
+            reward_blacks = 0# -reward_whites
             self.reversible_steps_white = 0
         done = step_dict.get("killed_piece", None) == PieceType.KING
         done = done or self.steps_made >= self.terminate_iters
@@ -117,7 +126,7 @@ class ChessEnv:
             reward_blacks = self.blocked_reward
         elif step_result == StepResult.PERFORMED_KILL:
             reward_blacks = self.reward_kill[step_dict["killed_piece"]]
-            reward_whites = -reward_blacks
+            reward_whites = 0# -reward_blacks
             self.reversible_steps_black = 0
         done = step_dict.get("killed_piece", None) == PieceType.KNIGHT
         done = done or self.steps_made >= self.terminate_iters

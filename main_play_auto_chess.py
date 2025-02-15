@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 import torch
 
 from chess_env import ChessEnv
@@ -19,11 +20,11 @@ env = ChessEnv(
 )
 
 model = torch.load(
-    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_47/Checkpoints/Checkpoint.pt"
+    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_8/Checkpoints/Checkpoint.pt"
 ).eval().requires_grad_(False)
 renderer = PieceRenderer(64)
 device = "cuda"
-for i_step in range(0, 1000):
+for i_step in range(0, 10000):
     current_side = env.chess_game_whites.current_player_color
     if current_side == PieceColor.WHITE:
         state = env.get_state_whites()
@@ -35,6 +36,7 @@ for i_step in range(0, 1000):
         actions_per_env, values_per_env = model(state)
 
     step_index = actions_per_env.sample().item()
+    print(np.unravel_index(step_index, [8, 8, 8, 8]))
 
     if current_side == PieceColor.WHITE:
         reward_whites, reward_blacks, done, step_result = env.step_whites(step_index)
@@ -48,4 +50,4 @@ for i_step in range(0, 1000):
 
     image = renderer.render_field(field)
     cv2.imshow("qwe", image)
-    cv2.waitKey(0)
+    cv2.waitKey(10)
