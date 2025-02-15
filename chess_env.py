@@ -60,6 +60,7 @@ class ChessEnv:
 
     def step(self, action: int):
         source_row, source_column, target_row, target_column = np.unravel_index(action, [8, 8, 8, 8])
+        self.steps_made += 1
 
         if self.chess_game.current_player_color == PieceColor.BLACK:
             source_row, source_column, target_row, target_column = ChessField.flip_move(
