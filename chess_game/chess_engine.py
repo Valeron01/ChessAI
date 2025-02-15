@@ -76,6 +76,10 @@ class ChessField:
                 piece.piece_color = invert_color(piece.piece_color)
         return self_copy
 
+    @staticmethod
+    def flip_move(source_row, source_column, target_row, target_column):
+        return 7 - source_row, source_column, 7 - target_row, target_column
+
 
 class MoveChecker:
     @staticmethod
@@ -252,49 +256,40 @@ class ChessEngine:
     def __init__(self, field: ChessField, current_player_color: PieceColor, dead_whites, dead_blacks):
         self.field = field
         self.current_player_color = current_player_color
-        self.__dead_whites = dead_whites
-        self.__dead_blacks = dead_blacks
+        self.dead_whites = dead_whites
+        self.dead_blacks = dead_blacks
 
     def make_step(self, source_row, source_column, target_row, target_column):
         is_step_possible = self.field[source_row, source_column].piece_color == self.current_player_color
         is_step_possible = is_step_possible and MoveChecker.check_move(
             self.field, source_row, source_column, target_row, target_column
         )
-        return_dict = {}
         step_result = StepResult.INVALID_MOVE
+        killed_piece = None
+        moved_piece = None
         if is_step_possible:
             target_piece = self.field[target_row, target_column]
             if target_piece.piece_type != PieceType.EMPTY:
                 if target_piece.piece_color == PieceColor.BLACK:
-                    self.__dead_blacks.append(target_piece.piece_type)
+                    self.dead_blacks.append(target_piece.piece_type)
                 if target_piece.piece_color == PieceColor.WHITE:
-                    self.__dead_whites.append(target_piece.piece_type)
-                return_dict["killed_piece"] = target_piece.piece_type
+                    self.dead_whites.append(target_piece.piece_type)
+                killed_piece = target_piece.piece_type
                 step_result = StepResult.PERFORMED_KILL
             else:
                 step_result = StepResult.PERFORMED
-                return_dict["moved_piece"] = self.field[source_row, source_column]
+                moved_piece = self.field[source_row, source_column].piece_type
 
             self.current_player_color = invert_color(self.current_player_color)
 
             self.field[target_row, target_column] = self.field[source_row, source_column]
             self.field[source_row, source_column] = Piece(PieceType.EMPTY, None)
 
-        return step_result, return_dict
+        return step_result, moved_piece, killed_piece
 
     def flipped_sides(self):
         board_inverted = self.field.flipped_sides()
         player_color = invert_color(self.current_player_color)
         return ChessEngine(
-            board_inverted, player_color, copy.deepcopy(self.__dead_blacks), copy.deepcopy(self.__dead_whites)
+            board_inverted, player_color, copy.deepcopy(self.dead_blacks), copy.deepcopy(self.dead_whites)
         )
-
-
-def invert_move(src_x, src_y, tgt_x, tgt_y):
-    return src_x, 7 - src_y, tgt_x, 7 - tgt_y
-
-
-if __name__ == '__main__':
-    f = ChessField.init_game()
-    print(f.__field_array)
-

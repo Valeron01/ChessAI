@@ -25,7 +25,7 @@ model = torch.load(
 renderer = PieceRenderer(64)
 device = "cuda"
 for i_step in range(0, 10000):
-    current_side = env.chess_game_whites.current_player_color
+    current_side = env.chess_game.current_player_color
     if current_side == PieceColor.WHITE:
         state = env.get_state_whites()
     else:
@@ -46,7 +46,7 @@ for i_step in range(0, 10000):
 
     print(done)
 
-    field = env.chess_game_whites.field
+    field = env.chess_game.field
 
     image = renderer.render_field(field)
     cv2.imshow("qwe", image)
