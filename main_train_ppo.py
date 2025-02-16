@@ -38,7 +38,7 @@ def main():
     )
     model_hparams = {
         "dim_model": 128,
-        "n_heads": 4,
+        "n_heads": 8,
         "dim_feedforward": 256,
         "n_layers": 4,
         "n_layers_head": 1

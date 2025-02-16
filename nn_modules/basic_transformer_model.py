@@ -31,6 +31,7 @@ class DenseResBlock(nn.Module):
 class BasicTransformerModel(nn.Module):
     def __init__(self, dim_model: int, n_heads: int, dim_feedforward: int, n_layers: int, n_layers_head: int):
         super().__init__()
+        self.dim_model = dim_model
 
         self.position_encoding = nn.Parameter(
             torch.randn(1, 64, dim_model)
@@ -38,6 +39,16 @@ class BasicTransformerModel(nn.Module):
 
         self.pieces_embedding = nn.Parameter(
             torch.randn(13, dim_model)
+        )
+
+        self.conv_layer = nn.Sequential(
+            nn.Conv2d(dim_model, dim_model, 3, 1, 1),
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(dim_model, dim_model, 3, 1, 1),
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(dim_model, dim_model, 3, 1, 1),
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(dim_model, dim_model, 3, 1, 1),
         )
 
         self.transformer = nn.TransformerEncoder(
@@ -83,6 +94,9 @@ class BasicTransformerModel(nn.Module):
         field_tensor_flattened = field_tensor.flatten(1)
         embeddings = self.pieces_embedding[field_tensor_flattened]
         embeddings_with_pos_encoding = self.position_encoding + embeddings
+
+        embeddings_with_pos_encoding = self.conv_layer(embeddings_with_pos_encoding.view(field_tensor.shape[0], 8, 8, self.dim_model).permute(0, 3, 1, 2)).flatten(2).permute(0, 2, 1)
+
         with torch.autocast(field_tensor.device.type, torch.float16), torch.backends.cuda.sdp_kernel(
                 enable_flash=True, enable_math=False, enable_mem_efficient=True, enable_cudnn=True
         ):
