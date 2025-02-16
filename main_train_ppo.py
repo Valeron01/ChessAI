@@ -38,17 +38,17 @@ def main():
     )
     model_hparams = {
         "dim_model": 128,
-        "n_heads": 2,
+        "n_heads": 4,
         "dim_feedforward": 256,
-        "n_layers": 6,
-        "n_layers_head": 2
+        "n_layers": 4,
+        "n_layers_head": 1
     }
     device = "cuda:0"
     n_iterations = 10000000
     batch_size = 128
     lr = 6e-5
     n_epochs = 3 # Try a Different epoch count
-    gamma = 0.9
+    gamma = 0.99
     num_actions_to_collect = 2048
     epsilon = 0.2
     entropy_coefficient = 0.0001
@@ -57,12 +57,12 @@ def main():
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
-        "performed_reward": 0.1,
-        "blocked_reward": -0.5,
+        "performed_reward": 0,
+        "blocked_reward": -1,
         "terminate_iters": 128,
         "fifty_rule_steps": 10,
         "fifty_rule_penalty": -7,
-        "rand_field_prob": 0.3,
+        "rand_field_prob": 0.8,
         "n_bad_steps_to_terminate": 1
     }
     hparam_dict = {
