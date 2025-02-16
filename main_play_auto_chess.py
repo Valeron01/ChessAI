@@ -13,7 +13,7 @@ env_params = {
     "terminate_iters": 512,
     "fifty_rule_steps": 15,
     "fifty_rule_penalty": -0.2,
-    "rand_field_prob": 1,
+    "rand_field_prob": 0.5,
     "n_bad_steps_to_terminate": 10000
     }
 env = ChessEnv(
@@ -21,7 +21,7 @@ env = ChessEnv(
 )
 
 model = torch.load(
-    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_165/Checkpoints/Checkpoint.pt"
+    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_169/Checkpoints/Checkpoint.pt"
 ).eval().requires_grad_(False)
 renderer = PieceRenderer(64)
 device = "cuda"

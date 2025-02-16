@@ -20,9 +20,9 @@ def compute_returns_per_env(rewards, gamma, dones, last_values):
     returns_result = torch.zeros_like(rewards)
     returns_cumsum = last_values * dones[-1]
     for frame_index in reversed(range(rewards.shape[0])):
+        returns_cumsum *= 1 - dones[frame_index]
         returns_cumsum = rewards[frame_index] + returns_cumsum * gamma
         returns_result[frame_index] = returns_cumsum
-        returns_cumsum *= 1 - dones[frame_index]
 
     return returns_result
 
@@ -51,16 +51,16 @@ def main():
     gamma = 0.99
     num_actions_to_collect = 2048
     epsilon = 0.2
-    entropy_coefficient = 0.0001
+    entropy_coefficient = 0.00001
     return_coefficient = 0.5
     n_envs = 16
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
-        "performed_reward": 0,
+        "performed_reward": -0.1,
         "blocked_reward": -1,
         "terminate_iters": 128,
-        "fifty_rule_steps": 10,
+        "fifty_rule_steps": 25,
         "fifty_rule_penalty": -7,
         "rand_field_prob": 0.8,
         "n_bad_steps_to_terminate": 1
