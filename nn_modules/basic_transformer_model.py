@@ -67,7 +67,8 @@ class BasicTransformerModel(nn.Module):
         )
 
         self.mlp_value = nn.Sequential(
-            DenseResBlock(dim_model, dim_feedforward),
+            FeedForward(dim_model, dim_feedforward),
+            FeedForward(dim_model, dim_feedforward),
             nn.Linear(dim_model, 1)
         )
 

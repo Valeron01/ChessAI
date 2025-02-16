@@ -9,7 +9,7 @@ from chess_game.renderer import PieceRenderer
 from nn_modules.basic_transformer_model import BasicTransformerModel
 env_params = {
     "performed_reward": -0.00005,
-    "blocked_reward": -0.2,
+    "blocked_reward": -0.02,
     "terminate_iters": 512,
     "fifty_rule_steps": 15,
     "fifty_rule_penalty": -0.2,
@@ -21,14 +21,13 @@ env = ChessEnv(
 )
 
 model = torch.load(
-    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_51/Checkpoints/Checkpoint.pt"
+    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_129/Checkpoints/Checkpoint.pt"
 ).eval().requires_grad_(False)
 renderer = PieceRenderer(64)
 device = "cuda"
 for i_step in range(0, 10000):
-    current_side = env.chess_game.current_player_color
+    env.chess_game.current_player_color = PieceColor.WHITE
     state = env.state().to(device)[None]
-
     with torch.inference_mode():
         actions_per_env, values_per_env = model(state)
 
@@ -41,4 +40,7 @@ for i_step in range(0, 10000):
 
     image = renderer.render_field(field)
     cv2.imshow("qwe", image)
-    cv2.waitKey(10)
+    cv2.waitKey(1)
+cv2.waitKey(0)
+cv2.waitKey(0)
+cv2.waitKey(0)
