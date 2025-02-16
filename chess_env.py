@@ -34,7 +34,7 @@ class ChessEnv:
             PieceType.KNIGHT: 3,
             PieceType.ROOK: 5,
             PieceType.QUEEN: 9,
-            PieceType.KING: -10
+            PieceType.KING: 20
         }
 
         self.steps_made = 0
@@ -43,8 +43,6 @@ class ChessEnv:
         self.bad_steps = 0
 
     def state(self) -> torch.Tensor:
-        self.chess_game.current_player_color = PieceColor.WHITE
-
         field = self.chess_game.field
         if self.chess_game.current_player_color == PieceColor.BLACK:
             field = self.chess_game.field.flipped_sides()
@@ -64,8 +62,6 @@ class ChessEnv:
         return torch.from_numpy(result)
 
     def step(self, action: int):
-        self.chess_game.current_player_color = PieceColor.WHITE
-
         source_row, source_column, target_row, target_column = np.unravel_index(action, [8, 8, 8, 8])
         self.steps_made += 1
 
@@ -76,15 +72,19 @@ class ChessEnv:
 
         step_result, moved_piece, killed_piece = self.chess_game.make_step(source_row, source_column, target_row, target_column)
         reward = 0
+        opponent_reward = 0
         done = False
         terminated = False
+        return_mask = False
         if step_result == StepResult.INVALID_MOVE:
             reward = self.blocked_reward
             self.bad_steps += 1
+            return_mask = True
         else:
             self.good_steps += 1
             if killed_piece is not None:
                 reward = self.reward_kill[killed_piece]
+                opponent_reward = -reward
             else:
                 reward = self.performed_reward
 
@@ -109,4 +109,4 @@ class ChessEnv:
             reward = self.fifty_rule_penalty
 
         reward = reward / 10
-        return reward, terminated, done
+        return reward, opponent_reward, terminated, done, return_mask
