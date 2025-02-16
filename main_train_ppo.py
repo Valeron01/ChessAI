@@ -57,7 +57,7 @@ def main():
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
-        "performed_reward": -0.1,
+        "performed_reward": -0.01,
         "blocked_reward": -1,
         "terminate_iters": 128,
         "fifty_rule_steps": 25,
