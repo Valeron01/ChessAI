@@ -20,7 +20,7 @@ env = ChessEnv(
     **env_params
 )
 model = torch.load(
-    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_294/Checkpoints/Checkpoint.pt"
+    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_304/Checkpoints/Checkpoint.pt"
 ).eval().requires_grad_(False)
 renderer = PieceRenderer(64)
 device = "cuda"

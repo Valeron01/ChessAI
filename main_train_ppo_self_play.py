@@ -12,15 +12,16 @@ from chess_env import ChessEnv
 from nn_modules.basic_transformer_model import BasicTransformerModel
 
 
-def compute_returns_per_env(rewards, gamma, dones):
+def compute_returns_per_env(rewards, gamma, dones, return_masks):
     assert rewards.ndim == 2
     assert dones.ndim == 2
+    assert return_masks.ndim == 2
     returns_result = torch.zeros_like(rewards)
     returns_cumsum = 0
     for frame_index in reversed(range(rewards.shape[0])):
         returns_cumsum *= 1 - dones[frame_index]
-        returns_cumsum = rewards[frame_index] + returns_cumsum * gamma
-        returns_result[frame_index] = returns_cumsum
+        returns_cumsum = rewards[frame_index] * (1 - return_masks[frame_index]) + returns_cumsum * gamma
+        returns_result[frame_index] = rewards[frame_index] * return_masks[frame_index] + returns_cumsum * (1 - return_masks[frame_index])
 
     return returns_result
 
@@ -46,23 +47,23 @@ def main():
     n_iterations = 10000000
     batch_size = 128
     lr = 6e-5
-    n_epochs = 4  # Try a Different epoch count
+    n_epochs = 2  # Try a Different epoch count
     gamma = 0.9
     num_actions_to_collect = 2048
     epsilon = 0.13
-    entropy_coefficient = 0.009
+    entropy_coefficient = 0.023
     return_coefficient = 0.5
     n_env_pairs = 8
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
         "performed_reward": 0.01,
-        "blocked_reward": -2,
+        "blocked_reward": -0.05,
         "terminate_iters": 128,
         "fifty_rule_steps": 25,
         "fifty_rule_penalty": -2,
         "rand_field_prob": 0.1,
-        "n_bad_steps_to_terminate": 1
+        "n_bad_steps_to_terminate": 5
     }
     hparam_dict = {
         "n_iterations": n_iterations,
@@ -155,6 +156,7 @@ def main():
             states.append(torch.cat([states_per_env_first_team, states_per_env_second_team], 0)[None])
             actions.append(torch.cat([actions_sampled_per_env_first_team, actions_sampled_per_env_second_team], 0)[None])
             old_log_probs.append(torch.cat([old_log_probs_per_env_first_team, old_log_probs_per_env_second_team], 0)[None])
+            return_masks.append(torch.FloatTensor(return_masks_per_env)[None])
 
             for env_index in range(n_env_pairs):
                 if dones_per_env_first_team[env_index] and dones_per_env_second_team[env_index]:
@@ -180,9 +182,10 @@ def main():
         states = torch.cat(states, 0)
         actions = torch.cat(actions, 0)
         old_log_probs = torch.cat(old_log_probs, 0)
+        return_masks = torch.cat(return_masks, 0)
 
         returns = compute_returns_per_env(
-            rewards, gamma, dones
+            rewards, gamma, dones, return_masks
         ).to(device)
 
         # print(rewards.shape)
@@ -199,6 +202,7 @@ def main():
         returns = returns.flatten(0, 1).to(device)
         old_log_probs = old_log_probs.flatten(0, 1).to(device)
         values = values.flatten(0, 1).to(device)
+        return_masks = return_masks.flatten(0, 1).to(device)
 
         model = model.train()
         for _ in trange(num_actions_to_collect * n_epochs // batch_size):
@@ -209,18 +213,23 @@ def main():
             returns_batch = returns[samples_indices]
             old_log_probs_batch = old_log_probs[samples_indices]
             values_batch = values[samples_indices]
+            return_masks_batch = return_masks[samples_indices]
+            return_masks_batch_inv = 1 - return_masks_batch
 
             predicted_actions, predicted_returns = model(states_batch)
             new_log_probs = predicted_actions.log_prob(actions_batch)
             ratios = (new_log_probs - old_log_probs_batch).exp()
 
-            loss_returns = nn.functional.l1_loss(predicted_returns, returns_batch)
+            loss_returns = nn.functional.mse_loss(predicted_returns * return_masks_batch_inv, returns_batch * return_masks_batch_inv)
             clipped_ratios = torch.clamp(ratios, 1 - epsilon, 1 + epsilon)
             advantages = returns_batch - values_batch.detach()
 
             advantages_log = advantages.detach().mean()
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
             advantages = advantages.detach()
+
+            advantages = advantages * return_masks_batch_inv + returns_batch * return_masks_batch
+
             policy_loss = -torch.min(ratios * advantages, clipped_ratios * advantages).mean()
             entropy_loss = -predicted_actions.entropy().mean()
             total_loss = policy_loss + loss_returns * return_coefficient + entropy_loss * entropy_coefficient

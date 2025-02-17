@@ -3,6 +3,7 @@ import random
 import numpy as np
 import torch
 
+import chess_game.common_things
 from chess_game.chess_engine import ChessField, ChessEngine, PieceColor, PieceType, StepResult
 
 
@@ -88,6 +89,7 @@ class ChessEnv:
         return resulted_state
 
     def step(self, action: int):
+        alternated_color = chess_game.common_things.invert_color(self.chess_game.current_player_color)
         source_row, source_column, target_row, target_column = np.unravel_index(action, [8, 8, 8, 8])
         self.steps_made += 1
 
@@ -134,6 +136,8 @@ class ChessEnv:
             print("Terminated, maybe loop")
             print()
             reward = self.fifty_rule_penalty
+
+        self.chess_game.current_player_color = alternated_color
 
         reward = reward / 10
         return reward, opponent_reward, terminated, done, return_mask

@@ -88,7 +88,7 @@ class BasicTransformerModel(nn.Module):
         assert field_tensor.shape[2] == 8
         assert field_tensor.shape[3] == 8
 
-        with torch.autocast(field_tensor.device.type, torch.float16), torch.backends.cuda.sdp_kernel(
+        with torch.autocast(field_tensor.device.type, torch.float32), torch.backends.cuda.sdp_kernel(
                 enable_flash=True, enable_math=False, enable_mem_efficient=True, enable_cudnn=True
         ):
             field_tensor_flattened = field_tensor.permute(0, 2, 3, 1)
