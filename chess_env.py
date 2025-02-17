@@ -49,8 +49,12 @@ class ChessEnv:
 
     @staticmethod
     def build_invert_side_indices(history_size):
-        resulted_indices = torch.cat([torch.arange(6, 12), torch.arange(0, 6)])
-        return torch.cat([resulted_indices] * history_size)
+        single_indices = torch.cat([torch.arange(6, 12), torch.arange(0, 6)])
+        resulted_indices = []
+        for i in range(history_size):
+            resulted_indices.append(single_indices + i * 12)
+
+        return torch.cat(resulted_indices)
 
     def _current_field_state(self) -> torch.Tensor:
         field = self.chess_game.field
@@ -105,9 +109,6 @@ class ChessEnv:
             self.good_steps += 1
             if killed_piece is not None:
                 reward = self.reward_kill[killed_piece]
-                if killed_piece == PieceType.KING:
-                    if len(self.chess_game.dead_blacks) == 15:
-                        reward = abs(reward)
                 opponent_reward = -reward
             else:
                 reward = self.performed_reward
