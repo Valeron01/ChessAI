@@ -13,15 +13,14 @@ env_params = {
     "terminate_iters": 512,
     "fifty_rule_steps": 15,
     "fifty_rule_penalty": -0.2,
-    "rand_field_prob": 0,
+    "rand_field_prob": 1,
     "n_bad_steps_to_terminate": 10000
     }
 env = ChessEnv(
     **env_params
 )
-
 model = torch.load(
-    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_227/Checkpoints/Checkpoint.pt"
+    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_237/Checkpoints/Checkpoint.pt"
 ).eval().requires_grad_(False)
 renderer = PieceRenderer(64)
 device = "cuda"
@@ -41,7 +40,7 @@ for i_step in range(0, 10000):
 
     image = renderer.render_field(field)
     cv2.imshow("qwe", image)
-    cv2.waitKey(1)
+    cv2.waitKey(10)
 cv2.waitKey(0)
 cv2.waitKey(0)
 cv2.waitKey(0)

@@ -34,7 +34,7 @@ class ChessEnv:
             PieceType.KNIGHT: 3,
             PieceType.ROOK: 5,
             PieceType.QUEEN: 9,
-            PieceType.KING: 20
+            PieceType.KING: -1
         }
 
         self.steps_made = 0
@@ -105,6 +105,9 @@ class ChessEnv:
             self.good_steps += 1
             if killed_piece is not None:
                 reward = self.reward_kill[killed_piece]
+                if killed_piece == PieceType.KING:
+                    if len(self.chess_game.dead_blacks) == 15:
+                        reward = abs(reward)
                 opponent_reward = -reward
             else:
                 reward = self.performed_reward

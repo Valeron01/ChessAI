@@ -48,20 +48,20 @@ def main():
     n_iterations = 10000000
     batch_size = 128
     lr = 6e-5
-    n_epochs = 3 # Try a Different epoch count
+    n_epochs = 4 # Try a Different epoch count
     gamma = 0.7
     num_actions_to_collect = 2048
     epsilon = 0.2
-    entropy_coefficient = 0.00001
+    entropy_coefficient = 0.05
     return_coefficient = 0.5
     n_envs = 16
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
-        "performed_reward": -0.1,
+        "performed_reward": -0.05,
         "blocked_reward": -5,
         "terminate_iters": 128,
-        "fifty_rule_steps": 25,
+        "fifty_rule_steps": 10,
         "fifty_rule_penalty": -7,
         "rand_field_prob": 0.8,
         "n_bad_steps_to_terminate": 1
