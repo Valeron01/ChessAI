@@ -51,14 +51,14 @@ def main():
     gamma = 0.9
     num_actions_to_collect = 2048
     epsilon = 0.13
-    entropy_coefficient = 0.023
+    entropy_coefficient = 0.06
     return_coefficient = 0.5
     n_env_pairs = 8
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
-        "performed_reward": 0.01,
-        "blocked_reward": -0.05,
+        "performed_reward": -0.01,
+        "blocked_reward": -1,
         "terminate_iters": 128,
         "fifty_rule_steps": 25,
         "fifty_rule_penalty": -2,
@@ -223,12 +223,14 @@ def main():
             loss_returns = nn.functional.mse_loss(predicted_returns * return_masks_batch_inv, returns_batch * return_masks_batch_inv)
             clipped_ratios = torch.clamp(ratios, 1 - epsilon, 1 + epsilon)
             advantages = returns_batch - values_batch.detach()
-
-            advantages_log = advantages.detach().mean()
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
             advantages = advantages.detach()
 
-            advantages = advantages * return_masks_batch_inv + returns_batch * return_masks_batch
+            advantages_log = advantages.mean()
+            advantages_std = (advantages.std() + 1e-8)
+            advantages = (advantages - advantages.mean()) / advantages_std
+            advantages_max = advantages.abs().max()
+
+            advantages = advantages * return_masks_batch_inv + (returns_batch * return_masks_batch) * advantages_max
 
             policy_loss = -torch.min(ratios * advantages, clipped_ratios * advantages).mean()
             entropy_loss = -predicted_actions.entropy().mean()
@@ -245,7 +247,7 @@ def main():
             torch.nn.utils.clip_grad_norm_(model.transformer.parameters(), max_norm=50)
             optimizer.step()
 
-        if epoch % 20 == 0 and epoch != 0:
+        if epoch % 10 == 0 and epoch != 0:
             target_path = os.path.join(writer.log_dir, "Checkpoints/Checkpoint.pt")
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
             torch.save(model, target_path)

@@ -8,7 +8,7 @@ from chess_game.common_things import PieceColor, PieceType
 from chess_game.renderer import PieceRenderer
 from nn_modules.basic_transformer_model import BasicTransformerModel
 env_params = {
-    "performed_reward": -0.00005,
+    "performed_reward": -0.05,
     "blocked_reward": -0.02,
     "terminate_iters": 512,
     "fifty_rule_steps": 15,
@@ -20,7 +20,7 @@ env = ChessEnv(
     **env_params
 )
 model = torch.load(
-    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_304/Checkpoints/Checkpoint.pt"
+    "/home/valera/PycharmProjects/ChessAI/logs_ppo/run_318/Checkpoints/Checkpoint.pt"
 ).eval().requires_grad_(False)
 renderer = PieceRenderer(64)
 device = "cuda"
