@@ -67,19 +67,6 @@ class ChessField:
         piece = self.__field_array[row, column]
         return piece.piece_type == PieceType.EMPTY
 
-    def flipped_sides(self):
-        self_copy = copy.deepcopy(self)
-        self_copy.__field_array = np.flip(self_copy.__field_array, axis=[0])
-        for i in range(8):
-            for j in range(8):
-                piece = self_copy[i, j]
-                piece.piece_color = invert_color(piece.piece_color)
-        return self_copy
-
-    @staticmethod
-    def flip_move(source_row, source_column, target_row, target_column):
-        return 7 - source_row, source_column, 7 - target_row, target_column
-
 
 class MoveChecker:
     @staticmethod
@@ -197,7 +184,6 @@ class MoveChecker:
 
         return True
 
-
     @staticmethod
     def check_move(field: ChessField, source_row, source_column, target_row, target_column):
         try:
@@ -286,10 +272,3 @@ class ChessEngine:
             self.field[source_row, source_column] = Piece(PieceType.EMPTY, None)
 
         return step_result, moved_piece, killed_piece
-
-    def flipped_sides(self):
-        board_inverted = self.field.flipped_sides()
-        player_color = invert_color(self.current_player_color)
-        return ChessEngine(
-            board_inverted, player_color, copy.deepcopy(self.dead_blacks), copy.deepcopy(self.dead_whites)
-        )

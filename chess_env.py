@@ -42,12 +42,20 @@ class ChessEnv:
         self.good_steps = 0
         self.bad_steps = 0
 
-    def state(self) -> torch.Tensor:
-        field = self.chess_game.field
-        if self.chess_game.current_player_color == PieceColor.BLACK:
-            field = self.chess_game.field.flipped_sides()
+        self.history_size = 8
 
-        result = np.zeros([8, 8], dtype=np.int32)
+        self._field_states = [torch.zeros(12, 8, 8)] * self.history_size
+        self.side_invertion_indices = ChessEnv.build_invert_side_indices(self.history_size)
+
+    @staticmethod
+    def build_invert_side_indices(history_size):
+        resulted_indices = torch.cat([torch.arange(6, 12), torch.arange(0, 6)])
+        return torch.cat([resulted_indices] * history_size)
+
+    def _current_field_state(self) -> torch.Tensor:
+        field = self.chess_game.field
+
+        resulted_state = np.zeros([12, 8, 8], dtype=np.float32)
         for i in range(8):
             for j in range(8):
                 piece = field[i, j]
@@ -58,17 +66,30 @@ class ChessEnv:
                 shift_index = 0 if piece_color == PieceColor.WHITE else 6
                 piece_index = int(piece_type.value) + shift_index
 
-                result[i, j] = piece_index + 1
-        return torch.from_numpy(result)
+                resulted_state[piece_index, i, j] = 1
+        return torch.from_numpy(resulted_state)
+
+    def state(self):
+        current_field_state = self._current_field_state()
+
+        self._field_states.append(current_field_state)
+        self._field_states = self._field_states[1:]
+        assert len(self._field_states) == self.history_size
+
+        resulted_state = torch.cat(self._field_states, 0)
+
+        if self.chess_game.current_player_color == PieceColor.BLACK:
+            resulted_state = resulted_state.flip([1])[self.side_invertion_indices]
+        assert resulted_state.dtype == torch.float32
+        return resulted_state
 
     def step(self, action: int):
         source_row, source_column, target_row, target_column = np.unravel_index(action, [8, 8, 8, 8])
         self.steps_made += 1
 
         if self.chess_game.current_player_color == PieceColor.BLACK:
-            source_row, source_column, target_row, target_column = ChessField.flip_move(
-                source_row, source_column, target_row, target_column
-            )
+            source_row = 7 - source_row
+            target_row = 7 - target_row
 
         step_result, moved_piece, killed_piece = self.chess_game.make_step(source_row, source_column, target_row, target_column)
         reward = 0
@@ -93,6 +114,8 @@ class ChessEnv:
 
             if moved_piece != PieceType.PAWN and killed_piece is None:
                 self.invertable_steps_made += 1
+            else:
+                self.invertable_steps_made = 0
 
         if self.steps_made >= self.terminate_iters:
             terminated = True

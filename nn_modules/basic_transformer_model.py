@@ -29,16 +29,13 @@ class DenseResBlock(nn.Module):
 
 
 class BasicTransformerModel(nn.Module):
-    def __init__(self, dim_model: int, n_heads: int, dim_feedforward: int, n_layers: int, n_layers_head: int):
+    def __init__(self, input_dim: int, dim_model: int, n_heads: int, dim_feedforward: int, n_layers: int, n_layers_head: int):
         super().__init__()
         self.dim_model = dim_model
+        self.input_projection = nn.Linear(input_dim, dim_model)
 
         self.position_encoding = nn.Parameter(
             torch.randn(1, 64, dim_model)
-        )
-
-        self.pieces_embedding = nn.Parameter(
-            torch.randn(13, dim_model)
         )
 
         self.conv_layer = nn.Sequential(
@@ -83,24 +80,22 @@ class BasicTransformerModel(nn.Module):
             nn.Linear(dim_model, 1)
         )
 
-        nn.init.normal_(self.pieces_embedding, mean=0, std=0.02)
         nn.init.normal_(self.position_encoding, mean=0, std=0.02)
         nn.init.normal_(self.critic_cls_token, mean=0, std=0.02)
 
     def forward(self, field_tensor: torch.Tensor):
-        assert field_tensor.ndim == 3
-        assert field_tensor.shape[1] == 8
+        assert field_tensor.ndim == 4
         assert field_tensor.shape[2] == 8
-        field_tensor_flattened = field_tensor.flatten(1)
-        embeddings = self.pieces_embedding[field_tensor_flattened]
-        embeddings_with_pos_encoding = self.position_encoding + embeddings
-
-        embeddings_with_pos_encoding = self.conv_layer(embeddings_with_pos_encoding.view(field_tensor.shape[0], 8, 8, self.dim_model).permute(0, 3, 1, 2)).flatten(2).permute(0, 2, 1)
+        assert field_tensor.shape[3] == 8
 
         with torch.autocast(field_tensor.device.type, torch.float16), torch.backends.cuda.sdp_kernel(
                 enable_flash=True, enable_math=False, enable_mem_efficient=True, enable_cudnn=True
         ):
-            transformer = self.transformer(embeddings_with_pos_encoding)
+            field_tensor_flattened = field_tensor.permute(0, 2, 3, 1)
+            input_projection = self.input_projection(field_tensor_flattened).permute(0, 3, 1, 2)
+            conv = self.conv_layer(input_projection).flatten(2).permute(0, 2, 1)
+            conv_with_pos_encoding = self.position_encoding + conv
+            transformer = self.transformer(conv_with_pos_encoding)
             source_embeddings = self.transformer_source(transformer)
             target_embeddings = self.transformer_target(transformer)
 
@@ -119,11 +114,19 @@ class BasicTransformerModel(nn.Module):
 
 
 if __name__ == '__main__':
-    model = BasicTransformerModel(128, 4, 512, 5, n_layers_head=3).cuda()
-    field = torch.randint(0, 13, [3, 8, 8]).cuda()
+    model = BasicTransformerModel(**{
+        "dim_model": 128,
+        "n_heads": 8,
+        "dim_feedforward": 256,
+        "n_layers": 4,
+        "n_layers_head": 1,
+        "input_dim": 96
+    }).cuda()
+    field = torch.randn([3, 96, 8, 8]).cuda()
     actor, value = model(field)
 
     print(actor.entropy())
+    print(value)
     print(actor.probs.max())
     print(actor.probs.min())
 
