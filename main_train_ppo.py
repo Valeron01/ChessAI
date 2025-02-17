@@ -139,6 +139,7 @@ def main():
             n_taken_pieces_white += len(i.chess_game.dead_blacks)
             n_taken_pieces_black += len(i.chess_game.dead_whites)
             total_steps += i.steps_made
+        mean_lifetime = total_steps / (len(envs) + len(env_logs))
 
         rewards = torch.cat(rewards, 0)
         terminates = torch.cat(terminates, 0)
@@ -218,6 +219,7 @@ def main():
         writer.add_scalar("mean_returns", returns.mean(), epoch)
         writer.add_scalar("max_returns", returns.max(), epoch)
         writer.add_scalar("min_returns", returns.min(), epoch)
+        writer.add_scalar("mean_lifetime", mean_lifetime, epoch)
 
 
 if __name__ == '__main__':
