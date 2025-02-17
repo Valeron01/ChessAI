@@ -29,12 +29,12 @@ class ChessEnv:
             self.chess_game.field = ChessField.init_random()
 
         self.reward_kill = {
-            PieceType.PAWN: 1,
-            PieceType.BISHOP: 3,
-            PieceType.KNIGHT: 3,
-            PieceType.ROOK: 5,
-            PieceType.QUEEN: 9,
-            PieceType.KING: 20
+            PieceType.PAWN: 0.1,
+            PieceType.BISHOP: 0.3,
+            PieceType.KNIGHT: 0.3,
+            PieceType.ROOK: 0.5,
+            PieceType.QUEEN: 0.9,
+            PieceType.KING: 2
         }
 
         self.steps_made = 0

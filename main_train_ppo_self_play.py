@@ -49,8 +49,8 @@ def main():
     n_epochs = 4  # Try a Different epoch count
     gamma = 0.9
     num_actions_to_collect = 2048
-    epsilon = 0.2
-    entropy_coefficient = 0.005
+    epsilon = 0.13
+    entropy_coefficient = 0.009
     return_coefficient = 0.5
     n_env_pairs = 8
     model = BasicTransformerModel(**model_hparams).to(device)
