@@ -34,7 +34,7 @@ class ChessEnv:
             PieceType.KNIGHT: 3,
             PieceType.ROOK: 5,
             PieceType.QUEEN: 9,
-            PieceType.KING: -1
+            PieceType.KING: 20
         }
 
         self.steps_made = 0

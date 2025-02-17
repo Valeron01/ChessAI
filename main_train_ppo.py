@@ -58,13 +58,13 @@ def main():
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
-        "performed_reward": -0.05,
-        "blocked_reward": -5,
+        "performed_reward": -0.5,
+        "blocked_reward": -0.3,
         "terminate_iters": 128,
         "fifty_rule_steps": 10,
         "fifty_rule_penalty": -7,
         "rand_field_prob": 0.8,
-        "n_bad_steps_to_terminate": 1
+        "n_bad_steps_to_terminate": 25
     }
     hparam_dict = {
         "n_iterations": n_iterations,
@@ -102,8 +102,6 @@ def main():
         n_taken_pieces_black = 0
 
         for i_step in range(0, num_actions_to_collect, n_envs):
-            for env in envs:
-                env.chess_game.current_player_color = PieceColor.WHITE
             states_per_env = torch.cat([env.state()[None] for env in envs], 0).to(device)
             with torch.inference_mode():
                 distributions_per_env, values_per_env = model(states_per_env)
@@ -119,9 +117,7 @@ def main():
             dones_per_env = []
             actions_sampled_per_env = actions_sampled_per_env.cpu()
             for env_index, env in enumerate(envs):
-                env.chess_game.current_player_color = PieceColor.WHITE
                 reward, opponent_reward, terminated, done, return_mask = env.step(actions_sampled_per_env[env_index].item())
-                env.chess_game.current_player_color = PieceColor.WHITE
                 rewards_per_env.append(reward)
                 terminates_per_env.append(terminated)
                 dones_per_env.append(done)

@@ -9,20 +9,18 @@ from tqdm import trange
 
 import tb_utils
 from chess_env import ChessEnv
-from chess_game.common_things import PieceColor
 from nn_modules.basic_transformer_model import BasicTransformerModel
 
 
-def compute_returns_per_env(rewards, gamma, dones, return_masks):
+def compute_returns_per_env(rewards, gamma, dones):
     assert rewards.ndim == 2
     assert dones.ndim == 2
-    assert return_masks.ndim == 2
     returns_result = torch.zeros_like(rewards)
     returns_cumsum = 0
     for frame_index in reversed(range(rewards.shape[0])):
         returns_cumsum *= 1 - dones[frame_index]
-        returns_cumsum = rewards[frame_index] * (1 - return_masks[frame_index]) + returns_cumsum * gamma
-        returns_result[frame_index] = rewards[frame_index] * return_masks[frame_index] + returns_cumsum * (1 - return_masks[frame_index])
+        returns_cumsum = rewards[frame_index] + returns_cumsum * gamma
+        returns_result[frame_index] = returns_cumsum
 
     return returns_result
 
@@ -41,28 +39,29 @@ def main():
         "n_heads": 8,
         "dim_feedforward": 256,
         "n_layers": 4,
-        "n_layers_head": 1
+        "n_layers_head": 1,
+        "input_dim": 96
     }
     device = "cuda:0"
     n_iterations = 10000000
     batch_size = 128
     lr = 6e-5
-    n_epochs = 3 # Try a Different epoch count
+    n_epochs = 4  # Try a Different epoch count
     gamma = 0.9
     num_actions_to_collect = 2048
     epsilon = 0.2
-    entropy_coefficient = 0.0001
+    entropy_coefficient = 0.005
     return_coefficient = 0.5
     n_env_pairs = 8
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
-        "performed_reward": -0.05,
-        "blocked_reward": -10,
+        "performed_reward": 0.01,
+        "blocked_reward": -2,
         "terminate_iters": 128,
-        "fifty_rule_steps": 30,
-        "fifty_rule_penalty": -10,
-        "rand_field_prob": 0.5,
+        "fifty_rule_steps": 25,
+        "fifty_rule_penalty": -2,
+        "rand_field_prob": 0.1,
         "n_bad_steps_to_terminate": 1
     }
     hparam_dict = {
@@ -156,7 +155,6 @@ def main():
             states.append(torch.cat([states_per_env_first_team, states_per_env_second_team], 0)[None])
             actions.append(torch.cat([actions_sampled_per_env_first_team, actions_sampled_per_env_second_team], 0)[None])
             old_log_probs.append(torch.cat([old_log_probs_per_env_first_team, old_log_probs_per_env_second_team], 0)[None])
-            return_masks.append(torch.FloatTensor(return_masks_per_env)[None])
 
             for env_index in range(n_env_pairs):
                 if dones_per_env_first_team[env_index] and dones_per_env_second_team[env_index]:
@@ -173,6 +171,7 @@ def main():
             n_taken_pieces_white += len(i.chess_game.dead_blacks)
             n_taken_pieces_black += len(i.chess_game.dead_whites)
             total_steps += i.steps_made
+        mean_lifetime = total_steps / (len(envs) + len(env_logs))
 
         rewards = torch.cat(rewards, 0)
         terminates = torch.cat(terminates, 0)
@@ -181,10 +180,9 @@ def main():
         states = torch.cat(states, 0)
         actions = torch.cat(actions, 0)
         old_log_probs = torch.cat(old_log_probs, 0)
-        return_masks = torch.cat(return_masks, 0)
 
         returns = compute_returns_per_env(
-            rewards, gamma, dones, return_masks
+            rewards, gamma, dones
         ).to(device)
 
         # print(rewards.shape)
@@ -201,7 +199,6 @@ def main():
         returns = returns.flatten(0, 1).to(device)
         old_log_probs = old_log_probs.flatten(0, 1).to(device)
         values = values.flatten(0, 1).to(device)
-        return_masks = return_masks.flatten(0, 1).to(device)
 
         model = model.train()
         for _ in trange(num_actions_to_collect * n_epochs // batch_size):
@@ -212,18 +209,17 @@ def main():
             returns_batch = returns[samples_indices]
             old_log_probs_batch = old_log_probs[samples_indices]
             values_batch = values[samples_indices]
-            return_masks_batch = 1 - return_masks[samples_indices]
 
             predicted_actions, predicted_returns = model(states_batch)
             new_log_probs = predicted_actions.log_prob(actions_batch)
             ratios = (new_log_probs - old_log_probs_batch).exp()
 
-            loss_returns = nn.functional.mse_loss(predicted_returns * return_masks_batch, returns_batch * return_masks_batch)
+            loss_returns = nn.functional.l1_loss(predicted_returns, returns_batch)
             clipped_ratios = torch.clamp(ratios, 1 - epsilon, 1 + epsilon)
             advantages = returns_batch - values_batch.detach()
 
             advantages_log = advantages.detach().mean()
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-6)
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
             advantages = advantages.detach()
             policy_loss = -torch.min(ratios * advantages, clipped_ratios * advantages).mean()
             entropy_loss = -predicted_actions.entropy().mean()
@@ -237,10 +233,10 @@ def main():
 
             optimizer.zero_grad()
             total_loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.transformer.parameters(), max_norm=2)
+            torch.nn.utils.clip_grad_norm_(model.transformer.parameters(), max_norm=50)
             optimizer.step()
 
-        if epoch % 10 == 0:
+        if epoch % 20 == 0 and epoch != 0:
             target_path = os.path.join(writer.log_dir, "Checkpoints/Checkpoint.pt")
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
             torch.save(model, target_path)
@@ -253,6 +249,8 @@ def main():
         writer.add_scalar("mean_returns", returns.mean(), epoch)
         writer.add_scalar("max_returns", returns.max(), epoch)
         writer.add_scalar("min_returns", returns.min(), epoch)
+        writer.add_scalar("mean_lifetime", mean_lifetime, epoch)
+
 
 
 if __name__ == '__main__':
