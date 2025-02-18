@@ -108,6 +108,7 @@ class ChessEnv:
             self.bad_steps += 1
             return_mask = True
         else:
+            self.bad_steps = 0
             self.good_steps += 1
             if killed_piece is not None:
                 reward = self.reward_kill[killed_piece]
@@ -124,7 +125,6 @@ class ChessEnv:
                 self.invertable_steps_made = 0
 
         if self.steps_made >= self.terminate_iters:
-            terminated = True
             done = True
         if self.bad_steps >= self.n_bad_steps_to_terminate:
             done = True

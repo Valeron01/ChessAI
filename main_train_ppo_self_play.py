@@ -36,32 +36,32 @@ def main():
         "./logs_ppo"
     )
     model_hparams = {
-        "dim_model": 128,
-        "n_heads": 8,
-        "dim_feedforward": 256,
-        "n_layers": 4,
-        "n_layers_head": 1,
+        "dim_model": 256,
+        "n_heads": 16,
+        "dim_feedforward": 384,
+        "n_layers": 7,
+        "n_layers_head": 2,
         "input_dim": 96
     }
     device = "cuda:0"
     n_iterations = 10000000
     batch_size = 128
-    lr = 6e-5
+    lr = 2e-5
     n_epochs = 2  # Try a Different epoch count
-    gamma = 0.9
+    gamma = 0.91
     num_actions_to_collect = 2048
-    epsilon = 0.13
-    entropy_coefficient = 0.06
+    epsilon = 0.15
+    entropy_coefficient = 0.13
     return_coefficient = 0.5
     n_env_pairs = 8
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
         "performed_reward": -0.01,
-        "blocked_reward": -1,
+        "blocked_reward": -2,
         "terminate_iters": 128,
         "fifty_rule_steps": 25,
-        "fifty_rule_penalty": -2,
+        "fifty_rule_penalty": -25,
         "rand_field_prob": 0.1,
         "n_bad_steps_to_terminate": 5
     }
@@ -99,6 +99,7 @@ def main():
         terminates = []
         old_log_probs = []
         return_masks = []
+
 
         model = model.eval()
         for i_step in range(0, num_actions_to_collect // n_env_pairs):
@@ -261,6 +262,8 @@ def main():
         writer.add_scalar("max_returns", returns.max(), epoch)
         writer.add_scalar("min_returns", returns.min(), epoch)
         writer.add_scalar("mean_lifetime", mean_lifetime, epoch)
+        writer.add_scalar("terminated_count", terminates.sum(), epoch)
+        writer.add_scalar("dead_count", dones.sum(), epoch)
 
 
 
