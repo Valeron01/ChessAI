@@ -2,12 +2,14 @@ import os.path
 import random
 
 import numpy as np
+import yaml
 from torch import nn
 import torch
 from tqdm import trange
 
 import tb_utils
 from chess_env import ChessEnv
+from chess_game.common_things import PieceColor
 from nn_modules.basic_transformer_model import BasicTransformerModel
 
 
@@ -26,7 +28,7 @@ def compute_returns_per_env(rewards, gamma, dones, last_values):
 
 
 def main():
-    seed = 0
+    seed = 2
     torch.random.manual_seed(seed)
     random.seed(seed)
     np.random.seed(seed)
@@ -36,31 +38,33 @@ def main():
     )
     model_hparams = {
         "dim_model": 128,
-        "n_heads": 2,
+        "n_heads": 8,
         "dim_feedforward": 256,
-        "n_layers": 6,
-        "n_layers_head": 2
+        "n_layers": 4,
+        "n_layers_head": 1,
+        "input_dim": 96
     }
     device = "cuda:0"
     n_iterations = 10000000
     batch_size = 128
-    lr = 1e-4
-    n_epochs = 8 # Try a Different epoch count
-    gamma = 0.9
+    lr = 6e-5
+    n_epochs = 4 # Try a Different epoch count
+    gamma = 0.7
     num_actions_to_collect = 2048
     epsilon = 0.2
-    entropy_coefficient = 0.0001
-    return_coefficient = 2
+    entropy_coefficient = 0.05
+    return_coefficient = 0.5
     n_envs = 16
     model = BasicTransformerModel(**model_hparams).to(device)
 
     env_params = {
-        "performed_reward": 0.01,
-        "blocked_reward": -0.03,
-        "terminate_iters": 256,
-        "fifty_rule_steps": 30,
-        "fifty_rule_penalty": -2,
-        "rand_field_prob": 0.5
+        "performed_reward": -0.5,
+        "blocked_reward": -0.3,
+        "terminate_iters": 128,
+        "fifty_rule_steps": 10,
+        "fifty_rule_penalty": -7,
+        "rand_field_prob": 0.8,
+        "n_bad_steps_to_terminate": 25
     }
     hparam_dict = {
         "n_iterations": n_iterations,
@@ -76,7 +80,8 @@ def main():
     }
     hparam_dict.update(env_params)
     hparam_dict.update(model_hparams)
-    writer.add_hparams(hparam_dict, metric_dict={"default_hp": -1})
+    with open(os.path.join(writer.log_dir, "hyper_parameters.yaml"), "w") as f:
+        yaml.dump(hparam_dict, f)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
 
@@ -86,7 +91,7 @@ def main():
         states = []
         rewards = []
         actions = []
-        # values = []
+        values = []
         dones = []
         terminates = []
         old_log_probs = []
@@ -99,19 +104,20 @@ def main():
         for i_step in range(0, num_actions_to_collect, n_envs):
             states_per_env = torch.cat([env.state()[None] for env in envs], 0).to(device)
             with torch.inference_mode():
-                distributions_per_env, values = model(states_per_env)
+                distributions_per_env, values_per_env = model(states_per_env)
             actions_sampled_per_env = distributions_per_env.sample()
 
             actions.append(actions_sampled_per_env[None])
             old_log_probs.append(distributions_per_env.log_prob(actions_sampled_per_env)[None])
             states.append(states_per_env[None])
+            values.append(values_per_env[None])
 
             rewards_per_env = []
             terminates_per_env = []
             dones_per_env = []
             actions_sampled_per_env = actions_sampled_per_env.cpu()
             for env_index, env in enumerate(envs):
-                reward, terminated, done = env.step(actions_sampled_per_env[env_index].item())
+                reward, opponent_reward, terminated, done, return_mask = env.step(actions_sampled_per_env[env_index].item())
                 rewards_per_env.append(reward)
                 terminates_per_env.append(terminated)
                 dones_per_env.append(done)
@@ -129,9 +135,11 @@ def main():
             n_taken_pieces_white += len(i.chess_game.dead_blacks)
             n_taken_pieces_black += len(i.chess_game.dead_whites)
             total_steps += i.steps_made
+        mean_lifetime = total_steps / (len(envs) + len(env_logs))
 
         rewards = torch.cat(rewards, 0)
         terminates = torch.cat(terminates, 0)
+        values = torch.cat(values, 0)
         dones = torch.cat(dones, 0)
         states = torch.cat(states, 0)
         actions = torch.cat(actions, 0)
@@ -156,6 +164,7 @@ def main():
         actions = actions.flatten(0, 1).to(device)
         returns = returns.flatten(0, 1).to(device)
         old_log_probs = old_log_probs.flatten(0, 1).to(device)
+        values = values.flatten(0, 1).to(device)
 
         model = model.train()
         for _ in trange(num_actions_to_collect * n_epochs // batch_size):
@@ -165,17 +174,18 @@ def main():
             actions_batch = actions[samples_indices]
             returns_batch = returns[samples_indices]
             old_log_probs_batch = old_log_probs[samples_indices]
+            values_batch = values[samples_indices]
 
             predicted_actions, predicted_returns = model(states_batch)
             new_log_probs = predicted_actions.log_prob(actions_batch)
             ratios = (new_log_probs - old_log_probs_batch).exp()
 
-            loss_returns = nn.functional.l1_loss(predicted_returns, returns_batch)
+            loss_returns = nn.functional.mse_loss(predicted_returns, returns_batch)
             clipped_ratios = torch.clamp(ratios, 1 - epsilon, 1 + epsilon)
-            advantages = returns_batch - predicted_returns.detach()
+            advantages = returns_batch - values_batch.detach()
 
             advantages_log = advantages.detach().mean()
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-6)
             advantages = advantages.detach()
             policy_loss = -torch.min(ratios * advantages, clipped_ratios * advantages).mean()
             entropy_loss = -predicted_actions.entropy().mean()
@@ -189,7 +199,7 @@ def main():
 
             optimizer.zero_grad()
             total_loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2)
+            torch.nn.utils.clip_grad_norm_(model.transformer.parameters(), max_norm=2)
             optimizer.step()
 
         if epoch % 10 == 0:
@@ -202,6 +212,10 @@ def main():
         writer.add_scalar("good_steps_percentage", n_good_steps / total_steps, epoch)
         writer.add_scalar("n_taken_pieces_white", n_taken_pieces_white, epoch)
         writer.add_scalar("n_taken_pieces_black", n_taken_pieces_black, epoch)
+        writer.add_scalar("mean_returns", returns.mean(), epoch)
+        writer.add_scalar("max_returns", returns.max(), epoch)
+        writer.add_scalar("min_returns", returns.min(), epoch)
+        writer.add_scalar("mean_lifetime", mean_lifetime, epoch)
 
 
 if __name__ == '__main__':
